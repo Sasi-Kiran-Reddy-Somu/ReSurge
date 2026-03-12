@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Reddit Tracker V2 — PRD</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #111;
+    background: #fff;
+    font-size: 11pt;
+    line-height: 1.65;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 64px 48px 80px;
+  }
+
+  .doc-icon { font-size: 44px; margin-bottom: 18px; display: block; }
+  .doc-title { font-size: 32pt; font-weight: 800; color: #111; line-height: 1.15; margin-bottom: 48px; }
+
+  h2 { font-size: 18pt; font-weight: 700; color: #111; margin: 40px 0 14px; }
+  h3 { font-size: 13pt; font-weight: 700; color: #111; margin: 28px 0 10px; }
+  h4 { font-size: 11pt; font-weight: 700; color: #111; margin: 18px 0 6px; }
+
+  p { margin-bottom: 12px; color: #111; font-size: 11pt; }
+
+  ul { padding-left: 22px; margin-bottom: 14px; }
+  ol { padding-left: 22px; margin-bottom: 14px; }
+  li { margin-bottom: 7px; font-size: 11pt; color: #111; }
+  li ul { margin-top: 6px; margin-bottom: 0; }
+  li ul li { list-style-type: circle; }
+
+  strong { font-weight: 700; }
+
+  hr { border: none; border-top: 1.5px solid #e0e0e0; margin: 36px 0; }
+
+  code {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 9.5pt;
+    background: #f4f4f4;
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: #111;
+  }
+
+  @page { size: A4; margin: 16mm 14mm; }
+  @media print { .page-break { page-break-before: always; } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <span class="doc-icon">📋</span>
+  <div class="doc-title">Product Requirements<br>Document (PRD)</div>
+
+  <!-- Product Overview -->
+  <h2>Product Overview</h2>
+  <p><strong>Product Name:</strong> Reddit Tracker V2</p>
+  <p><strong>Product Type:</strong> Reddit Monitoring & Engagement Platform</p>
+  <p><strong>Description:</strong> Reddit Tracker V2 is an automated Reddit post monitoring platform that detects viral posts in real time and instantly notifies account holders — so they don't need to manually search Reddit. Holders get a direct alert with an AI-generated comment suggestion, reducing both search time and the judgment required to craft a relevant response.</p>
+
+  <!-- Problem Statement -->
+  <h2>Problem Statement</h2>
+  <p>Teams managing Reddit accounts face two core problems:</p>
+  <ul>
+    <li><strong>Time wasted searching:</strong> NPLs, CPLs, and interns manually browse Reddit to find posts worth commenting on, which is slow and unreliable. Good posts are often missed or caught too late.</li>
+    <li><strong>Inconsistent comment quality:</strong> Not everyone managing an account has the sensibility to pick the right comment even when an AI suggestion is provided. Without structured guidance and tracking, comment quality and timing vary widely across the team.</li>
+  </ul>
+  <p>This tool solves both problems — it finds the posts automatically and delivers a comment suggestion directly to the holder. Tracking activity and conversion is secondary, but valuable for oversight.</p>
+
+  <!-- Target Users -->
+  <h2>Target Users</h2>
+  <h4>Primary Users:</h4>
+  <ul>
+    <li><strong>NPLs, CPLs, Interns (Holders)</strong> — Staff managing Reddit accounts. They receive alerts for viral posts on their subscribed subreddits and post comments using AI-generated suggestions.</li>
+    <li><strong>CPLs (Monitors)</strong> — Senior team members assigned to oversee specific holders. They track notification history, comment conversions, and account activity without needing admin access.</li>
+    <li><strong>Main Admin</strong> — Office-side operator with full system control. Manages which subreddits are tracked, configures detection sensitivity (stack thresholds), and oversees all holders and monitors.</li>
+  </ul>
+
+  <!-- Product Goals -->
+  <h2>Product Goals</h2>
+  <ol>
+    <li>Eliminate manual Reddit searching — notify holders the moment a post shows viral potential</li>
+    <li>Reduce comment quality variance by delivering AI-generated suggestions directly in the alert</li>
+    <li>Give monitors visibility into their assigned holders' response activity and conversion</li>
+    <li>Allow admins to tune detection sensitivity per subreddit and manage the full team from one place</li>
+  </ol>
+
+  <hr />
+
+  <!-- Core Functional Requirements -->
+  <h2>5. Core Functional Requirements</h2>
+
+  <h3>5.1 Stack Engine (S1–S4 Post Detection)</h3>
+  <p><strong>Goal:</strong> Automatically identify posts gaining viral momentum before they peak.</p>
+  <ul>
+    <li><strong>Four-Stage System:</strong> Posts move through S1 (Discovery) → S2 (Early Growth) → S3 (Momentum) → S4 (Viral Alert). At each stage, posts are evaluated against age and engagement growth thresholds. Those that don't meet the criteria are discarded.</li>
+    <li><strong>S1:</strong> New posts enter automatically. Posts failing minimum engagement (default: 20) after 10 minutes are discarded.</li>
+    <li><strong>S2:</strong> Posts meeting S1 criteria are monitored for growth rate. Less than 30% growth in 7 minutes → discarded.</li>
+    <li><strong>S3:</strong> A second growth check — less than 50% growth in 7 minutes → discarded. Posts passing S3 trigger S4 alerts.</li>
+    <li><strong>S4 — Viral Alert:</strong> Notifications are sent to all subscribed holder accounts. Post stays visible in the feed for 24 hours then auto-expires.</li>
+    <li><strong>Configurable Thresholds:</strong> All six parameters (age and growth % for S1–S3) are adjustable per subreddit via the admin dashboard. Changes take effect on the next poll cycle (60 seconds).</li>
+  </ul>
+
+  <h3>5.2 Subreddit Management</h3>
+  <p><strong>Goal:</strong> Admin controls which subreddits are monitored.</p>
+  <ul>
+    <li>Add a subreddit → polling starts immediately (BullMQ job every 60s). A confirmation appears on successful add.</li>
+    <li>Remove a subreddit → polling stops; all historical data is preserved (soft-delete).</li>
+    <li>Subreddits can be hidden from the holder portal (still polled, but holders can't subscribe).</li>
+    <li>Removal requires confirmation via a modal popup.</li>
+  </ul>
+
+  <h3>5.3 Notification & Alert System</h3>
+  <p><strong>Goal:</strong> Deliver actionable alerts to holders the moment a post goes viral.</p>
+  <ul>
+    <li><strong>Email Delivery:</strong> Notifications sent via Resend with post details and a "Open &amp; Respond" CTA.</li>
+    <li><strong>Deep-Link Auto-Login:</strong> The email link contains a pre-signed JWT. Clicking it opens the holder portal, logs the holder in automatically, and surfaces the post modal — no manual login needed.</li>
+    <li><strong>Per-Account Notifications:</strong> Each holder account subscribed to a subreddit gets its own notification record, so tracking is per account, not just per user.</li>
+    <li><strong>Notification Status:</strong> Each notification tracks: <strong>sent → opened → posted</strong>. When a holder submits their posted comment URL, the <code>postedLink</code> and <code>postedAt</code> are recorded.</li>
+  </ul>
+
+  <h3>5.4 AI Comment Generation</h3>
+  <p><strong>Goal:</strong> Reduce the effort and judgment required to write a relevant comment.</p>
+  <ul>
+    <li>Triggered with one click from the S4 feed (admin) or any notification (holder).</li>
+    <li>Before calling the AI, the system fetches the top 8 existing Reddit comments to calibrate tone and context.</li>
+    <li>GPT-4o generates a natural, human-sounding comment — prompted to avoid AI-sounding phrases.</li>
+    <li>Generated comments are cached per post to avoid redundant API calls.</li>
+  </ul>
+
+  <h3>5.5 Holder Portal</h3>
+  <p><strong>Goal:</strong> A focused interface for holders to receive alerts, view suggestions, and record their activity.</p>
+  <ul>
+    <li>Notification feed sorted by recency with status badges. Filterable by status.</li>
+    <li>Post detail modal: title, subreddit, engagement stats, AI comment suggestion, and action buttons.</li>
+    <li>Account management: holders add their email/Reddit pairs and subscribe each account to relevant subreddits.</li>
+  </ul>
+
+  <h3>5.6 Monitor Dashboard</h3>
+  <p><strong>Goal:</strong> Let CPLs track the holders they're responsible for.</p>
+  <ul>
+    <li>Holder overview cards with quick stats: notifications received, comments posted, active accounts.</li>
+    <li>Holder detail: account pills, stats cards (filterable by time range), subreddit list, full notification history with status filters and clickable post links.</li>
+    <li>Monitors only see their assigned holders — not the full system.</li>
+  </ul>
+
+  <h3>5.7 Main Admin Dashboard</h3>
+  <p><strong>Goal:</strong> Full system control from the office.</p>
+  <ul>
+    <li>Real-time S1–S4 feed per subreddit. Stack badges show live counts. S4 viral feed auto-refreshes every 15 seconds.</li>
+    <li>Threshold sliders per subreddit for all 6 detection parameters. Changes apply on the next poll cycle.</li>
+    <li>Post history, all-notifications view, monitor/holder management, and subreddit settings.</li>
+  </ul>
+
+  <hr />
+
+  <!-- Data Model -->
+  <h2>Data Model (Conceptual)</h2>
+
+  <h4>subreddits</h4>
+  <ul><li>id, name, isActive, visibleToHolders, addedAt</li></ul>
+
+  <h4>posts</h4>
+  <ul><li>id, redditId, subreddit, title, url, author, upvotes, comments, engagement, redditCreatedAt, stackEnteredAt, stack (1–4), engAtStackEntry, lastGrowth, alertedAt, discarded</li></ul>
+
+  <h4>users</h4>
+  <ul><li>id, email, passwordHash, name, phone, role (main | monitor | holder), roles (array for multi-role users)</li></ul>
+
+  <h4>holder_accounts</h4>
+  <ul><li>id, holderId, emailAddress, redditUsername, notes, subreddits (text array)</li></ul>
+
+  <h4>notifications</h4>
+  <ul><li>id, userId, postId, accountId, subreddit, postTitle, postUrl, sentAt, openedAt, status (sent | opened | posted), postedLink, postedAt</li></ul>
+
+  <h4>thresholds</h4>
+  <ul><li>id, subreddit (null = global default), s1MinAge, s1MinEng, s2MinAge, s2GrowthPct, s3MinAge, s3GrowthPct</li></ul>
+
+  <h4>monitor_assignments</h4>
+  <ul><li>id, monitorId, holderId, assignedAt</li></ul>
+
+  <h4>generated_comments</h4>
+  <ul><li>id, postId, provider (openai | claude), suggestions (JSON), createdAt</li></ul>
+
+  <hr />
+
+  <!-- Tech Stack -->
+  <h2>Tech Stack</h2>
+
+  <h4>Backend</h4>
+  <ul>
+    <li><strong>Framework:</strong> Hono 4.x (TypeScript, Node.js 18+)</li>
+    <li><strong>Database:</strong> PostgreSQL 13+ with Drizzle ORM</li>
+    <li><strong>Job Queue:</strong> BullMQ + Redis (repeatable poll jobs per subreddit, every 60s)</li>
+    <li><strong>Auth:</strong> JWT (30-day) + bcryptjs</li>
+    <li><strong>Email:</strong> Resend</li>
+    <li><strong>AI:</strong> OpenAI GPT-4o (comment generation)</li>
+  </ul>
+
+  <h4>Frontends</h4>
+  <ul>
+    <li><strong>Main Admin (Port 3000):</strong> React 18 + Create React App</li>
+    <li><strong>Holder Portal (Port 3002):</strong> React 19 + Vite</li>
+    <li><strong>Monitor Dashboard (Port 3003):</strong> React 19 + Vite</li>
+  </ul>
+
+  <hr />
+
+  <!-- Key Metrics -->
+  <h2>Key Metrics Tracked</h2>
+  <ul>
+    <li><strong>Stack Distribution:</strong> Live count of posts in S1–S4 per subreddit</li>
+    <li><strong>Alert Rate:</strong> Average S4 alerts triggered per day per subreddit</li>
+    <li><strong>Conversion Rate:</strong> Notifications sent vs. comments actually posted per holder and subreddit</li>
+    <li><strong>Response Time:</strong> Time between <code>sentAt</code> and <code>openedAt</code> / <code>postedAt</code> per notification</li>
+    <li><strong>Holder Performance:</strong> Total notifications, posted, and viewed per holder over configurable time ranges</li>
+  </ul>
+
+  <hr />
+
+  <!-- Success Metrics -->
+  <h2>Success Metrics</h2>
+  <ol>
+    <li>Holder receives an alert within 60 seconds of a post reaching S4</li>
+    <li>Holder can open an alert, review the AI comment, and mark it as posted in under 2 minutes</li>
+    <li>Admin can add a subreddit and see live S1–S4 data within 2 minutes</li>
+    <li>Monitor can view a holder's full notification history without needing admin access</li>
+    <li>Threshold changes on a subreddit take effect within one poll cycle (60 seconds)</li>
+  </ol>
+
+  <hr />
+
+  <!-- Assumptions & Dependencies -->
+  <h2>Assumptions &amp; Dependencies</h2>
+
+  <h4>Assumptions:</h4>
+  <ul>
+    <li>Target subreddits are publicly accessible (no private or restricted communities)</li>
+    <li>Post engagement (upvotes + comments) is a reliable early signal of viral potential</li>
+    <li>Reddit's public JSON API returns consistent response formats for parsing</li>
+  </ul>
+
+  <h4>Dependencies:</h4>
+  <ul>
+    <li>PostgreSQL and Redis must be running for the backend and polling jobs to function</li>
+    <li>Reddit's public <code>.json</code> endpoints — unauthenticated rate limit ~60 req/min. Systems tracking 30+ subreddits should configure Reddit OAuth credentials</li>
+    <li>Resend account with a verified sender domain for email delivery</li>
+    <li>OpenAI API key with GPT-4o access for comment generation</li>
+    <li>Reddit's spam/review hold may delay new posts appearing in <code>new.json</code> by 15–30 minutes — a Reddit platform constraint outside the system's control</li>
+  </ul>
+
+</div>
+</body>
+</html>
