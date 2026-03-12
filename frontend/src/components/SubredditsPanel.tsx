@@ -239,7 +239,9 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
   }
 
   async function handleRemove(name: string) {
-    await req("DELETE", `/subreddits/${encodeURIComponent(name)}`);
+    const sub = subs.find((s: any) => s.name === name);
+    const idOrName = sub?.id ? `/subreddits/${sub.id}` : `/subreddits/placeholder?name=${encodeURIComponent(name)}`;
+    await req("DELETE", idOrName);
     setSubs((p: any[]) => p.filter((s: any) => s.name !== name));
     setSelected(null);
     if (onSubredditRemoved) onSubredditRemoved(name);

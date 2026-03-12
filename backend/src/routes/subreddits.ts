@@ -148,14 +148,18 @@ subredditRoutes.patch("/:name/visibility", async (c) => {
   return c.json(updated);
 });
 
-// DELETE /api/subreddits/:name
-subredditRoutes.delete("/:name", async (c) => {
-  const name = c.req.param("name").toLowerCase();
+// DELETE /api/subreddits/:id  (id = UUID)
+// Also accepts name as fallback via ?name= query param
+subredditRoutes.delete("/:id", async (c) => {
+  const id = c.req.param("id");
+  const nameParam = c.req.query("name");
 
-  await db
-    .update(subreddits)
-    .set({ isActive: false })
-    .where(eq(subreddits.name, name));
+  if (nameParam) {
+    // Fallback: delete by name (for backwards compat)
+    await db.update(subreddits).set({ isActive: false }).where(eq(subreddits.name, nameParam.toLowerCase()));
+  } else {
+    await db.update(subreddits).set({ isActive: false }).where(eq(subreddits.id, id));
+  }
 
   return c.json({ ok: true });
 });
