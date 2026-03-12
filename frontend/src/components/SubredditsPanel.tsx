@@ -69,7 +69,8 @@ function SubredditDetail({ sub, onBack, onRemove, onToggleVisibility }: any) {
 
   async function handleRemove() {
     setRemoving(true);
-    try { await onRemove(sub.name); }
+    try { await onRemove(sub.name); setConfirmRemove(false); }
+    catch (e: any) { alert(e.message ?? "Remove failed"); setConfirmRemove(false); }
     finally { setRemoving(false); }
   }
 
@@ -213,7 +214,7 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
   async function handleAdd() {
     const names = input
       .split(/[\s,]+/)
-      .map((n: string) => n.replace(/^\/r\//, "").trim().toLowerCase())
+      .map((n: string) => n.replace(/^r\//, "").trim().toLowerCase())
       .filter(Boolean);
     if (names.length === 0) return;
     setAddBusy(true); setAddErr("");
@@ -238,7 +239,7 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
   }
 
   async function handleRemove(name: string) {
-    await req("DELETE", `/subreddits/${name}`);
+    await req("DELETE", `/subreddits/${encodeURIComponent(name)}`);
     setSubs((p: any[]) => p.filter((s: any) => s.name !== name));
     setSelected(null);
     if (onSubredditRemoved) onSubredditRemoved(name);
