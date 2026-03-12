@@ -211,17 +211,30 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
   const filtered = subs.filter((s: any) => s.name.includes(search.toLowerCase()));
 
   async function handleAdd() {
-    const name = input.replace(/^r\//, "").trim().toLowerCase();
-    if (!name) return;
+    const names = input
+      .split(/[\s,]+/)
+      .map((n: string) => n.replace(/^\/r\//, "").trim().toLowerCase())
+      .filter(Boolean);
+    if (names.length === 0) return;
     setAddBusy(true); setAddErr("");
-    try {
-      const added = await req("POST", "/subreddits", { name });
-      setSubs((p: any[]) => [...p, added]);
-      setInput("");
-      fireToast(`r/${added.name} has been added and is now being tracked.`);
-      if (onSubredditAdded) onSubredditAdded(added);
-    } catch (e: any) { setAddErr(e.message); }
-    finally { setAddBusy(false); }
+    const errors: string[] = [];
+    const added: any[] = [];
+    for (const name of names) {
+      try {
+        const result = await req("POST", "/subreddits", { name });
+        added.push(result);
+        setSubs((p: any[]) => [...p, result]);
+        if (onSubredditAdded) onSubredditAdded(result);
+      } catch (e: any) { errors.push(`r/${name}: ${e.message}`); }
+    }
+    setInput("");
+    if (added.length > 0) {
+      fireToast(added.length === 1
+        ? `r/${added[0].name} has been added and is now being tracked.`
+        : `${added.length} subreddits added successfully.`);
+    }
+    if (errors.length > 0) setAddErr(errors.join(" · "));
+    setAddBusy(false);
   }
 
   async function handleRemove(name: string) {
@@ -263,8 +276,8 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <input value={search} onChange={(e: any) => setSearch(e.target.value)} placeholder="Search subreddits…"
             style={{ flex: 1, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 14px", color: C.text, fontFamily: "inherit", fontSize: 13, outline: "none" }} />
-          <input value={input} onChange={(e: any) => setInput(e.target.value)} onKeyDown={(e: any) => e.key === "Enter" && handleAdd()} placeholder="r/newsubreddit"
-            style={{ width: 180, background: C.surface, border: `1px solid ${addErr ? C.red : C.border}`, borderRadius: 8, padding: "9px 14px", color: C.text, fontFamily: "inherit", fontSize: 13, outline: "none" }} />
+          <input value={input} onChange={(e: any) => setInput(e.target.value)} onKeyDown={(e: any) => e.key === "Enter" && handleAdd()} placeholder="r/sub1, r/sub2, …"
+            style={{ width: 220, background: C.surface, border: `1px solid ${addErr ? C.red : C.border}`, borderRadius: 8, padding: "9px 14px", color: C.text, fontFamily: "inherit", fontSize: 13, outline: "none" }} />
           <button onClick={handleAdd} disabled={addBusy}
             style={{ background: C.accent, color: "#fff", border: "none", borderRadius: 8, padding: "9px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
             {addBusy ? "Adding…" : "+ Add"}
