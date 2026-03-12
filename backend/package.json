@@ -17,6 +17,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.38.0",
+    "dotenv": "^17.3.1",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.7.4",
     "ioredis": "^5.4.2",
