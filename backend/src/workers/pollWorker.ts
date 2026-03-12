@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { redisForBull } from "../lib/redis.js";
+import { bullConnection } from "../lib/redis.js";
 import { fetchNewPostsMulti, refreshPostEngagement } from "../lib/redditFetcher.js";
 import { runStackTransitions } from "../lib/stackEngine.js";
 import { db } from "../db/client.js";
@@ -190,7 +190,7 @@ export function createPollWorker() {
       }
     },
     {
-      connection: redisForBull,
+      connection: bullConnection,
       concurrency: 1, // single global job, no parallelism needed
     }
   );

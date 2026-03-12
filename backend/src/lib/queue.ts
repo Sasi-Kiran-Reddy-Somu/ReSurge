@@ -1,11 +1,11 @@
 import { Queue, QueueEvents } from "bullmq";
-import { redisForBull } from "./redis.js";
+import { bullConnection } from "./redis.js";
 
 export const POLL_QUEUE_NAME = "reddit-poll";
 
 // Single global poll queue — one repeatable job covers all subreddits
 export const pollQueue = new Queue(POLL_QUEUE_NAME, {
-  connection: redisForBull,
+  connection: bullConnection,
   defaultJobOptions: {
     removeOnComplete: 50,
     removeOnFail:     100,
@@ -18,7 +18,7 @@ export const pollQueue = new Queue(POLL_QUEUE_NAME, {
 });
 
 export const pollQueueEvents = new QueueEvents(POLL_QUEUE_NAME, {
-  connection: redisForBull,
+  connection: bullConnection,
 });
 
 const GLOBAL_JOB_ID = "global-poll";

@@ -12,7 +12,5 @@ export const redis = new Redis(process.env.REDIS_URL, {
 redis.on("connect", () => console.log("✓ Redis connected"));
 redis.on("error",   (err) => console.error("Redis error:", err.message));
 
-// Separate connection for BullMQ (it needs its own connection)
-export const redisForBull = new Redis(process.env.REDIS_URL, {
-  maxRetriesPerRequest: null,
-});
+// Connection options for BullMQ (passed as plain object to avoid ioredis type conflicts)
+export const bullConnection = { url: process.env.REDIS_URL } as const;
