@@ -29,7 +29,7 @@ function AuthScreen({onAuth}){
   const [action,setAction]=useState("");
   const [role,setRole]=useState("");
   const [form,setForm]=useState({email:"",password:"",name:"",phone:""});
-  const [err,setErr]=useState("");const [busy,setBusy]=useState(false);
+  const [err,setErr]=useState("");const [busy,setBusy]=useState(false);const [showPass,setShowPass]=useState(false);
   const f=k=>e=>setForm(p=>({...p,[k]:e.target.value}));
 
   function pick(action,role){setAction(action);setRole(role);setStep("form");setErr("");}
@@ -110,7 +110,7 @@ function AuthScreen({onAuth}){
             </>
           )}
           <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:6}}>Email Address</label><input style={inp} type="email" value={form.email} onChange={f("email")} required/></div>
-          <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:6}}>Password</label><input style={inp} type="password" value={form.password} onChange={f("password")} required/></div>
+          <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:6}}>Password</label><div style={{position:"relative"}}><input style={{...inp,paddingRight:38}} type={showPass?"text":"password"} value={form.password} onChange={f("password")} required/><button type="button" onClick={()=>setShowPass(p=>!p)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:15,lineHeight:1,padding:0}}>{showPass?"🙈":"👁"}</button></div></div>
           {err&&<div style={{color:C.red,fontSize:13}}>{err}</div>}
           <button type="submit" style={{...btn(ROLE_COLORS[role],"#fff"),padding:"13px",fontSize:14}} disabled={busy}>
             {busy?"Please wait...":`${action==="signin"?"Sign in":"Create account"} →`}

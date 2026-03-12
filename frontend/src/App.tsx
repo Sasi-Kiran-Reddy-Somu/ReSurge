@@ -36,12 +36,13 @@ function decodeJwt(t: string): any {
 // LoginGate — shared across all roles, no cross-port redirect
 // ─────────────────────────────────────────────────────────────
 function LoginGate({ onAuth }: { onAuth: (token: string, user: any, isNewSignup: boolean) => void }) {
-  const [step,   setStep]   = useState("pick"); // "pick" | "form"
-  const [action, setAction] = useState("");     // "signin" | "signup"
-  const [role,   setRole]   = useState("");
-  const [form,   setForm]   = useState({ email:"", password:"", name:"", phone:"" });
-  const [err,    setErr]    = useState("");
-  const [busy,   setBusy]   = useState(false);
+  const [step,     setStep]     = useState("pick"); // "pick" | "form"
+  const [action,   setAction]   = useState("");     // "signin" | "signup"
+  const [role,     setRole]     = useState("");
+  const [form,     setForm]     = useState({ email:"", password:"", name:"", phone:"" });
+  const [err,      setErr]      = useState("");
+  const [busy,     setBusy]     = useState(false);
+  const [showPass, setShowPass] = useState(false);
 
   function pick(act: string, r: string) { setAction(act); setRole(r); setStep("form"); setErr(""); }
 
@@ -123,7 +124,7 @@ function LoginGate({ onAuth }: { onAuth: (token: string, user: any, isNewSignup:
             </>
           )}
           <div><label style={{ fontSize:11, color:"#6B7280", display:"block", marginBottom:6 }}>Email Address</label><input type="email" style={inp} value={form.email} onChange={(e:any)=>setForm({...form,email:e.target.value})} required /></div>
-          <div><label style={{ fontSize:11, color:"#6B7280", display:"block", marginBottom:6 }}>Password</label><input type="password" style={inp} value={form.password} onChange={(e:any)=>setForm({...form,password:e.target.value})} required /></div>
+          <div><label style={{ fontSize:11, color:"#6B7280", display:"block", marginBottom:6 }}>Password</label><div style={{ position:"relative" }}><input type={showPass?"text":"password"} style={{...inp,paddingRight:38}} value={form.password} onChange={(e:any)=>setForm({...form,password:e.target.value})} required /><button type="button" onClick={()=>setShowPass(p=>!p)} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:"#6B7280", fontSize:15, lineHeight:1, padding:0 }}>{showPass?"🙈":"👁"}</button></div></div>
           {err && <div style={{ color:"#F87171", fontSize:12 }}>{err}</div>}
           <button type="submit" disabled={busy} style={{ background:ROLE_COLORS[role], border:"none", borderRadius:8, padding:"12px", width:"100%", color: role==="holder" ? "#000" : "#fff", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>
             {busy ? "Please wait..." : `${action==="signin" ? "Sign in" : "Create account"} →`}
