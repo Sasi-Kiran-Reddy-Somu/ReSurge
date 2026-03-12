@@ -3,8 +3,9 @@ import { db } from "../db/client.js";
 import { users, monitorAssignments, userSubreddits, notifications, holderAccounts } from "../db/schema.js";
 import { eq, desc, inArray, sql } from "drizzle-orm";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
+import type { AppEnv } from "../types/index.js";
 
-export const monitorRoutes = new Hono();
+export const monitorRoutes = new Hono<AppEnv>();
 
 monitorRoutes.use("*", requireAuth);
 monitorRoutes.use("*", requireRole("monitor", "main"));

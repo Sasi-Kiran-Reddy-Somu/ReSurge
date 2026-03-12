@@ -176,7 +176,7 @@ export function createPollWorker() {
 
         // Expire Stack 3 posts older than 4 hours
         const stack3Expiry = now - 4 * 60 * 60 * 1000;
-        const { rowCount: expired } = await db
+        const expireResult = await db
           .update(posts)
           .set({ discarded: true, updatedAt: new Date() })
           .where(and(
@@ -186,7 +186,8 @@ export function createPollWorker() {
             lt(posts.alertedAt, stack3Expiry),
           ));
 
-        console.log(`  r/${sub} — new: ${newCounts[sub] ?? 0}, alerts: ${newStack3Alerts.length}, expired: ${expired ?? 0}`);
+        void expireResult;
+        console.log(`  r/${sub} — new: ${newCounts[sub] ?? 0}, alerts: ${newStack3Alerts.length}`);
       }
     },
     {

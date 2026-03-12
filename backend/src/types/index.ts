@@ -48,7 +48,15 @@ export interface RedditPost {
   created_utc: number;
   author: string;
   selftext: string;
+  subreddit?: string;
 }
+
+export type AppEnv = {
+  Variables: {
+    userId: string;
+    userRole: string;
+  };
+};
 
 export interface PollJobData {
   // global job — no per-subreddit data needed

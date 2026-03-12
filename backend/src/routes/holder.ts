@@ -3,8 +3,9 @@ import { db } from "../db/client.js";
 import { users, userSubreddits, notifications, holderAccounts, subreddits } from "../db/schema.js";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "../middleware/requireAuth.js";
+import type { AppEnv } from "../types/index.js";
 
-export const holderRoutes = new Hono();
+export const holderRoutes = new Hono<AppEnv>();
 
 holderRoutes.use("*", requireAuth);
 
