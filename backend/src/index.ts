@@ -23,9 +23,16 @@ const allowedOrigins = [
   process.env.MONITOR_APP_URL ?? "http://localhost:3003",
 ];
 
+function isAllowedOrigin(origin: string): boolean {
+  if (allowedOrigins.includes(origin)) return true;
+  if (origin.endsWith(".vercel.app")) return true;
+  if (origin.startsWith("http://localhost:")) return true;
+  return false;
+}
+
 app.use("*", logger());
 app.use("*", cors({
-  origin:        (origin) => allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
+  origin:        (origin) => isAllowedOrigin(origin) ? origin : allowedOrigins[0],
   allowMethods:  ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowHeaders:  ["Content-Type", "Authorization"],
   exposeHeaders: ["Content-Length"],
