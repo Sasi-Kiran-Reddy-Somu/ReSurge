@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { sql } from "drizzle-orm";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
@@ -68,6 +69,21 @@ async function bootstrap() {
     console.log("✓ DB migrations applied");
   } catch (err) {
     console.error("Migration error:", (err as Error).message);
+  }
+
+  // Ensure invited_users table exists (direct fallback — migration may not have run on Railway)
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "invited_users" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "email" text NOT NULL UNIQUE,
+        "role" text NOT NULL,
+        "invited_at" timestamp NOT NULL DEFAULT now()
+      )
+    `);
+    console.log("✓ invited_users table ready");
+  } catch (err) {
+    console.error("invited_users table error:", (err as Error).message);
   }
 
   createPollWorker();
