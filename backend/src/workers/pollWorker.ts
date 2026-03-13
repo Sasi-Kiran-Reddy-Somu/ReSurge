@@ -139,7 +139,7 @@ export function createPollWorker() {
             const [user] = await db.select().from(users).where(eq(users.id, account.holderId)).limit(1);
             if (!user) continue;
             const userRoles = (user.roles && user.roles.length > 0) ? user.roles : [user.role];
-            if (!userRoles.includes("holder")) continue;
+            if (!userRoles.includes("holder") && !userRoles.includes("monitor")) continue;
 
             for (const postId of newStack3Alerts) {
               const [post] = await db.select().from(posts).where(eq(posts.id, postId)).limit(1);
