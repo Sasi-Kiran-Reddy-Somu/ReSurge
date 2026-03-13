@@ -3,7 +3,11 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
 
+import { db } from "./db/client.js";
 import { subredditRoutes } from "./routes/subreddits.js";
 import { postRoutes }      from "./routes/posts.js";
 import { thresholdRoutes } from "./routes/thresholds.js";
@@ -13,6 +17,8 @@ import { monitorRoutes }   from "./routes/monitor.js";
 import { adminRoutes }     from "./routes/admin.js";
 import { createPollWorker } from "./workers/pollWorker.js";
 import { ensureGlobalPollScheduled } from "./lib/queue.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = new Hono();
 
@@ -54,6 +60,15 @@ app.get("/health", (c) => c.json({ status: "ok", ts: Date.now() }));
 // ── Startup ────────────────────────────────────────────────────
 async function bootstrap() {
   console.log("\n🚀 ReSurge — starting up...");
+
+  // Auto-apply any pending DB migrations
+  try {
+    const migrationsFolder = resolve(__dirname, "../../drizzle");
+    await migrate(db, { migrationsFolder });
+    console.log("✓ DB migrations applied");
+  } catch (err) {
+    console.error("Migration error:", (err as Error).message);
+  }
 
   createPollWorker();
   console.log("✓ Poll worker started");
