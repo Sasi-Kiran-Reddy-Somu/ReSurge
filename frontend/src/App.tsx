@@ -560,7 +560,11 @@ function MyNotificationsM({ accounts, openAccId }: any) {
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
   const [popup, setPopup] = useState<any>(null);
-  useEffect(() => { reqM("GET", "/holder/notifications").then(setNotifs).catch(() => {}); }, []);
+  useEffect(() => {
+    reqM("GET", "/holder/notifications").then(setNotifs).catch(() => {});
+    const interval = setInterval(() => { reqM("GET", "/holder/notifications").then(setNotifs).catch(() => {}); }, 30_000);
+    return () => clearInterval(interval);
+  }, []);
   const scoped = openAccId ? notifs.filter((n: any) => String(n.accountId) === String(openAccId)) : notifs;
   const tabFiltered = scoped.filter((n: any) => tab === "all" || (tab === "viewed" ? n.status === "opened" : n.status === tab));
   const filtered = tabFiltered.filter((n: any) => !search || n.postTitle?.toLowerCase().includes(search.toLowerCase()) || n.subreddit?.toLowerCase().includes(search.toLowerCase()));
@@ -1109,6 +1113,8 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
       }).catch(() => {});
       window.history.replaceState({}, "", "/");
     }
+    const interval = setInterval(() => { load(); }, 30_000);
+    return () => clearInterval(interval);
   }, []);
 
   function setOpenAccIdPersist(id: any) { setOpenAccId(id); if (id) sessionStorage.setItem("holder_acc_id", id); else sessionStorage.removeItem("holder_acc_id"); }
