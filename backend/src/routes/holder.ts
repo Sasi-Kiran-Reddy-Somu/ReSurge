@@ -124,6 +124,21 @@ holderRoutes.post("/accounts", async (c) => {
   return c.json(row);
 });
 
+// PUT /api/holder/accounts/:id — update subreddits for an account
+holderRoutes.put("/accounts/:id", async (c) => {
+  const userId    = c.get("userId") as string;
+  const accountId = c.req.param("id");
+  const { subreddits } = await c.req.json();
+  const [row] = await db.select().from(holderAccounts)
+    .where(and(eq(holderAccounts.id, accountId), eq(holderAccounts.holderId, userId))).limit(1);
+  if (!row) return c.json({ error: "Not found" }, 404);
+  const [updated] = await db.update(holderAccounts)
+    .set({ subreddits: subreddits ?? [] })
+    .where(eq(holderAccounts.id, accountId))
+    .returning();
+  return c.json(updated);
+});
+
 // DELETE /api/holder/accounts/:id
 holderRoutes.delete("/accounts/:id", async (c) => {
   const userId    = c.get("userId") as string;

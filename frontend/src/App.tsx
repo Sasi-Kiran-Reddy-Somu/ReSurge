@@ -623,6 +623,7 @@ function MonitorDashboard({ user, onLogout }: any) {
   const [holders, setHolders] = useState<any[]>([]);
   const [selectedHolder, setSelectedHolder] = useState<any>(null);
   const [showManageAcc, setShowManageAcc] = useState(false);
+  const [editAcc, setEditAcc] = useState<any>(null);
 
   useEffect(() => { loadAccounts(); reqM("GET", "/monitor/holders").then(setHolders).catch(() => {}); }, []);
 
@@ -657,6 +658,10 @@ function MonitorDashboard({ user, onLogout }: any) {
                     </div>
                     {acc.redditUsername && <div style={{ fontSize: 11, color: C_M.muted, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{acc.emailAddress}</div>}
                   </div>
+                  <button onClick={() => { onClose(); setEditAcc(acc); }}
+                    style={{ background: "none", border: `1px solid ${C_M.border}`, color: C_M.sub, cursor: "pointer", fontFamily: "inherit", fontSize: 11, padding: "5px 12px", borderRadius: 6, fontWeight: 600, flexShrink: 0 }}>
+                    Edit Subs
+                  </button>
                   <button onClick={() => { if (window.confirm(`Remove account "${acc.redditUsername ? `u/${acc.redditUsername.replace(/^u\//, "")}` : acc.emailAddress}"? This cannot be undone.`)) deleteAccount(acc.id); }} disabled={delAccBusy === acc.id}
                     style={{ background: "none", border: "1px solid #7F1D1D", color: C_M.red, cursor: "pointer", fontFamily: "inherit", fontSize: 11, padding: "5px 12px", borderRadius: 6, fontWeight: 600, flexShrink: 0, opacity: delAccBusy === acc.id ? 0.5 : 1 }}>
                     {delAccBusy === acc.id ? "Removing…" : "Remove"}
@@ -678,6 +683,7 @@ function MonitorDashboard({ user, onLogout }: any) {
     <div style={{ display: "flex", height: "100vh", background: C_M.bg, fontFamily: "'IBM Plex Sans',sans-serif", overflow: "hidden" }}>
       {showAddAcc && <AddAccountModalH onClose={() => setShowAddAcc(false)} onAdded={() => { setShowAddAcc(false); loadAccounts(); }} />}
       {showManageAcc && <ManageAccountsModal onClose={() => setShowManageAcc(false)} />}
+      {editAcc && <EditAccountSubredditsModal account={editAcc} onClose={() => setEditAcc(null)} onSaved={() => { setEditAcc(null); loadAccounts(); }} saveSubreddits={(subs: string[]) => reqM("PUT", `/holder/accounts/${editAcc.id}`, { subreddits: subs })}/>}
 
       <div style={{ width: 280, background: C_M.surface, borderRight: `1px solid ${C_M.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "24px 20px 18px", borderBottom: `1px solid ${C_M.border}` }}>
@@ -808,6 +814,7 @@ const holderApi = {
   generateComment:  (postId: any)   => reqH("POST", `/posts/${postId}/generate-comment`),
   getAccounts:      ()              => reqH("GET",  "/holder/accounts"),
   addAccount:       (data: any)     => reqH("POST", "/holder/accounts", data),
+  updateAccount:    (id: any, data: any) => reqH("PUT", `/holder/accounts/${id}`, data),
   deleteAccount:    (id: any)       => reqH("DELETE", `/holder/accounts/${id}`),
 };
 
@@ -995,7 +1002,45 @@ function NotifListH({ notifs, onOpen }: any) {
   );
 }
 
-function ManageAccountsModalH({ accounts, onClose, onDeleted, onAdd, delBusy }: any) {
+function EditAccountSubredditsModal({ account, onClose, onSaved, saveSubreddits }: any) {
+  const [allSubs, setAllSubs] = useState<any[]>([]);
+  const [sel, setSel] = useState(new Set<string>(account.subreddits ?? []));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  useEffect(() => { holderApi.getSubreddits().then(setAllSubs).catch(() => {}); }, []);
+  function toggle(name: string) { setSel(p => { const n = new Set(p); n.has(name) ? n.delete(name) : n.add(name); return n; }); }
+  async function save() {
+    setBusy(true); setErr("");
+    try { await saveSubreddits([...sel]); onSaved(); }
+    catch(e: any) { setErr(e.message); }
+    finally { setBusy(false); }
+  }
+  const label = account.redditUsername ? `u/${account.redditUsername.replace(/^u\//,"")}` : account.emailAddress;
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:24}}>
+      <div style={{background:C_H.bg,border:`1px solid ${C_H.border}`,borderRadius:14,width:"min(720px,96vw)",maxHeight:"88vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <div style={{padding:"20px 24px 16px",borderBottom:`1px solid ${C_H.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+          <div>
+            <div style={{fontSize:15,fontWeight:800,color:C_H.text}}>Edit Subreddits</div>
+            <div style={{fontSize:12,color:C_H.muted,marginTop:2}}>{label}</div>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:`1px solid ${C_H.border}`,color:C_H.muted,cursor:"pointer",fontSize:18,borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:24}}>
+          <div style={{fontSize:12,color:C_H.sub,marginBottom:12}}>{sel.size} subreddit{sel.size!==1?"s":""} selected</div>
+          <SubredditGrid allSubs={allSubs} sel={sel} onToggle={toggle}/>
+        </div>
+        {err && <div style={{padding:"0 24px 8px",color:"#EF4444",fontSize:12}}>{err}</div>}
+        <div style={{padding:"14px 24px",borderTop:`1px solid ${C_H.border}`,display:"flex",gap:10}}>
+          <button onClick={save} disabled={busy} style={{...btnH(C_H.accent,"#000"),flex:1,padding:"11px"}}>{busy?"Saving…":"Save Changes"}</button>
+          <button onClick={onClose} style={{background:"none",border:`1px solid ${C_H.border}`,color:C_H.muted,cursor:"pointer",fontFamily:"inherit",fontSize:13,padding:"11px 18px",borderRadius:7}}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ManageAccountsModalH({ accounts, onClose, onDeleted, onAdd, onEdit, delBusy }: any) {
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400,padding:24}}>
       <div style={{background:C_H.bg,border:`1px solid ${C_H.border}`,borderRadius:14,width:"min(480px,96vw)",maxHeight:"80vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -1014,6 +1059,10 @@ function ManageAccountsModalH({ accounts, onClose, onDeleted, onAdd, delBusy }: 
                   </div>
                   {acc.redditUsername && <div style={{fontSize:11,color:C_H.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acc.emailAddress}</div>}
                 </div>
+                <button onClick={() => onEdit(acc)}
+                  style={{background:"none",border:`1px solid ${C_H.border}`,color:C_H.sub,cursor:"pointer",fontFamily:"inherit",fontSize:11,padding:"5px 12px",borderRadius:6,fontWeight:600,flexShrink:0}}>
+                  Edit Subs
+                </button>
                 <button onClick={() => { if (window.confirm(`Remove account "${acc.redditUsername ? `u/${acc.redditUsername.replace(/^u\//,"")}` : acc.emailAddress}"? This cannot be undone.`)) onDeleted(acc.id); }} disabled={delBusy===acc.id}
                   style={{background:"none",border:"1px solid #7F1D1D",color:"#EF4444",cursor:"pointer",fontFamily:"inherit",fontSize:11,padding:"5px 12px",borderRadius:6,fontWeight:600,flexShrink:0,opacity:delBusy===acc.id?0.5:1}}>
                   {delBusy===acc.id?"Removing…":"Remove"}
@@ -1043,6 +1092,7 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
   const [popup, setPopup] = useState<any>(null);
   const [showAddAcc, setShowAddAcc] = useState(false);
   const [showManageAcc, setShowManageAcc] = useState(false);
+  const [editAcc, setEditAcc] = useState<any>(null);
   const [delAccBusy, setDelAccBusy] = useState<any>(null);
   const commentCache = useRef<any>({});
 
@@ -1109,7 +1159,8 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
     <div style={{display:"flex",height:"100vh",background:C_H.bg,fontFamily:"'IBM Plex Sans',sans-serif",overflow:"hidden"}}>
       {popup && <PostPopupH notif={popup} cachedComment={commentCache.current[popup.postId]||null} onCommentCached={(c: any) => { commentCache.current[popup.postId]=c; }} onClose={() => setPopup(null)} onAction={() => { setPopup(null); load(); }}/>}
       {showAddAcc && <AddAccountModalH onClose={() => setShowAddAcc(false)} onAdded={() => { setShowAddAcc(false); loadAccounts(); }}/>}
-      {showManageAcc && <ManageAccountsModalH accounts={accounts} delBusy={delAccBusy} onClose={() => setShowManageAcc(false)} onDeleted={async (id: any) => { await deleteAccount(id); }} onAdd={() => { setShowManageAcc(false); setShowAddAcc(true); }}/>}
+      {showManageAcc && <ManageAccountsModalH accounts={accounts} delBusy={delAccBusy} onClose={() => setShowManageAcc(false)} onDeleted={async (id: any) => { await deleteAccount(id); }} onAdd={() => { setShowManageAcc(false); setShowAddAcc(true); }} onEdit={(acc: any) => { setShowManageAcc(false); setEditAcc(acc); }}/>}
+      {editAcc && <EditAccountSubredditsModal account={editAcc} onClose={() => setEditAcc(null)} onSaved={() => { setEditAcc(null); loadAccounts(); }} saveSubreddits={(subs: string[]) => holderApi.updateAccount(editAcc.id, { subreddits: subs })}/>}
 
       <div style={{width:270,background:C_H.surface,borderRight:`1px solid ${C_H.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
         <div style={{padding:"24px 20px 18px",borderBottom:`1px solid ${C_H.border}`}}>
