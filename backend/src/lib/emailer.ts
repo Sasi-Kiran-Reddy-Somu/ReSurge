@@ -14,7 +14,7 @@ function getTransporter() {
     secure: true,
     family: 4,
     auth: { user, pass },
-  });
+  } as any);
 }
 
 function buildInviteHtml(opts: { toEmail: string; roleLabel: string; loginUrl: string }) {
