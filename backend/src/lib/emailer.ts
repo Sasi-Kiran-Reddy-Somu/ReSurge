@@ -9,7 +9,10 @@ function getTransporter() {
   const pass = process.env.GMAIL_APP_PASSWORD;
   if (!user || !pass) throw new Error("GMAIL_USER or GMAIL_APP_PASSWORD not set");
   return nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    family: 4,
     auth: { user, pass },
   });
 }
