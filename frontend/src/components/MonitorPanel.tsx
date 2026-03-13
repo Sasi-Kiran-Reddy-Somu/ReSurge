@@ -215,7 +215,6 @@ export default function MonitorPanel() {
       <div style={{ display:"flex", alignItems:"center", marginBottom:20 }}>
         <span style={{ fontFamily:"'IBM Plex Sans',sans-serif", fontWeight:700, fontSize:15 }}>👁 Monitor Management</span>
       </div>
-      <CreateMonitorForm onCreated={load} />
       <input
         style={{ ...S.input, margin:"20px 0 12px" }}
         placeholder="Search monitors by name or email..."

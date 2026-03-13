@@ -73,22 +73,40 @@ export default function Sidebar({ subreddits, activeTab, onSwitch, onAdd, stackC
         })}
       </div>
 
-      {/* Manage Subreddits + nav + logout */}
+      {/* Nav + logout */}
       <div style={{ padding:"8px 12px", borderTop:"1px solid #1A1D2E" }}>
         {[
-          { label:"Alerts",            icon:"🔔", active:view==="alerts",        color:"#EF4444", bg:"#1C0505",    onClick:onViewAlerts,        badge: alertCount > 0 ? alertCount : null },
-          { label:"All Notifications", icon:"📋", active:view==="notifications", color:"#F59E0B", bg:"#1C1400",    onClick:onViewNotifications, badge: null },
-          { label:"Manage Subreddits", icon:"⚙️",  active:view==="subreddits",    color:"#9CA3AF", bg:"#111318",    onClick:onViewSubreddits,    badge: null },
-          { label:"Monitors",          icon:"👁️",  active:view==="monitors",      color:"#93C5FD", bg:"#0D1626",   onClick:onViewMonitors,      badge: null },
-          { label:"Holders",           icon:"👤",  active:view==="holders",       color:"#4ADE80", bg:"#071A0A",   onClick:onViewHolders,       badge: null },
-          { label:"Users",             icon:"👥",  active:view==="add-users",     color:"#A78BFA", bg:"#13092E",   onClick:onViewAddUsers,      badge: null },
+          {
+            label:"Alerts", active:view==="alerts", color:"#EF4444", bg:"#1C0505", onClick:onViewAlerts, badge: alertCount > 0 ? alertCount : null,
+            icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          },
+          {
+            label:"All Notifications", active:view==="notifications", color:"#F59E0B", bg:"#1C1400", onClick:onViewNotifications, badge: null,
+            icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          },
+          {
+            label:"Manage Subreddits", active:view==="subreddits", color:"#9CA3AF", bg:"#111318", onClick:onViewSubreddits, badge: null,
+            icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 8.46a5 5 0 0 0 0 7.07"/></svg>
+          },
+          {
+            label:"Monitors", active:view==="monitors", color:"#93C5FD", bg:"#0D1626", onClick:onViewMonitors, badge: null,
+            icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          },
+          {
+            label:"Holders", active:view==="holders", color:"#4ADE80", bg:"#071A0A", onClick:onViewHolders, badge: null,
+            icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          },
+          {
+            label:"Users", active:view==="add-users", color:"#A78BFA", bg:"#13092E", onClick:onViewAddUsers, badge: null,
+            icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          },
         ].map(({label,icon,active,color,bg,onClick,badge}) => (
           <div key={label} onClick={onClick}
             style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 10px", borderRadius:7, cursor:"pointer", marginBottom:2,
               background:active?bg:"transparent", borderLeft:`2px solid ${active?color:"transparent"}`, transition:"background 0.12s" }}
             onMouseEnter={(e: any) => { if (!active) e.currentTarget.style.background="#111318"; }}
             onMouseLeave={(e: any) => { if (!active) e.currentTarget.style.background="transparent"; }}>
-            <span style={{ fontSize:15, width:20, textAlign:"center", flexShrink:0, lineHeight:1 }}>{icon}</span>
+            <span style={{ width:20, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:active?color:"#6B7280" }}>{icon}</span>
             <span style={{ fontSize:12, color:active?color:"#9CA3AF", fontWeight:active?600:400, flex:1 }}>{label}</span>
             {badge !== null && badge > 0 && (
               <span style={{ background:"#EF4444", color:"#fff", borderRadius:10, padding:"1px 6px", fontSize:9, fontWeight:700, flexShrink:0 }}>{badge}</span>
@@ -99,7 +117,9 @@ export default function Sidebar({ subreddits, activeTab, onSwitch, onAdd, stackC
           <div onClick={onLogout} style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 10px", borderRadius:7, cursor:"pointer" }}
             onMouseEnter={(e: any) => e.currentTarget.style.background="#111318"}
             onMouseLeave={(e: any) => e.currentTarget.style.background="transparent"}>
-            <span style={{ fontSize:15, width:20, textAlign:"center", flexShrink:0 }}>→</span>
+            <span style={{ width:20, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, color:"#6B7280" }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </span>
             <span style={{ fontSize:12, color:"#9CA3AF" }}>Logout</span>
           </div>
         )}

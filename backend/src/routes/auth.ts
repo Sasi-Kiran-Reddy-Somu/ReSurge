@@ -122,6 +122,11 @@ authRoutes.post("/google", async (c) => {
     }
   }
 
+  // Remove from pending invites now that they've signed up
+  if (!ADMIN_EMAILS.includes(email)) {
+    await db.delete(invitedUsers).where(eq(invitedUsers.email, email));
+  }
+
   const token = signToken({ userId: user.id, role: user.role });
   return c.json({
     token,
