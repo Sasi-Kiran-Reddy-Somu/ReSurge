@@ -86,6 +86,27 @@ adminRoutes.put("/users/:id/roles", async (c) => {
   return c.json({ id: user.id, email: user.email, name: user.name, roles: user.roles });
 });
 
+// POST /api/admin/backfill-monitors — one-time: give all monitors holder role + self-assignment
+adminRoutes.post("/backfill-monitors", async (c) => {
+  const monitors = await db.select().from(users).where(sql`'monitor' = ANY(${users.roles})`);
+  const results = [];
+  for (const m of monitors) {
+    const currentRoles = m.roles?.length ? m.roles : [m.role];
+    if (!currentRoles.includes("holder")) {
+      const merged = [...new Set([...currentRoles, "holder"])];
+      await db.update(users).set({ roles: merged }).where(eq(users.id, m.id));
+    }
+    const existing = await db.select().from(monitorAssignments)
+      .where(eq(monitorAssignments.monitorId, m.id));
+    const selfAssigned = existing.some((a) => a.holderId === m.id);
+    if (!selfAssigned) {
+      await db.insert(monitorAssignments).values({ monitorId: m.id, holderId: m.id });
+    }
+    results.push({ id: m.id, email: m.email, selfAssigned: !selfAssigned });
+  }
+  return c.json({ patched: results.length, results });
+});
+
 // GET /api/admin/holders — users who have the "holder" role
 adminRoutes.get("/holders", async (c) => {
   const holders = await db.select().from(users).where(sql`'holder' = ANY(${users.roles})`);
