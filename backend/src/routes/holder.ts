@@ -1,9 +1,15 @@
 import { Hono } from "hono";
 import { db } from "../db/client.js";
 import { users, userSubreddits, notifications, holderAccounts, subreddits } from "../db/schema.js";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, not, inArray } from "drizzle-orm";
 import { requireAuth } from "../middleware/requireAuth.js";
 import type { AppEnv } from "../types/index.js";
+
+async function getPausedSubredditNames(): Promise<Set<string>> {
+  const rows = await db.select({ name: subreddits.name }).from(subreddits)
+    .where(and(eq(subreddits.isActive, true), eq(subreddits.isPaused, true)));
+  return new Set(rows.map(r => r.name));
+}
 
 export const holderRoutes = new Hono<AppEnv>();
 
@@ -42,10 +48,14 @@ holderRoutes.put("/subreddits", async (c) => {
 // GET /api/holder/notifications
 holderRoutes.get("/notifications", async (c) => {
   const userId = c.get("userId") as string;
-  const rows   = await db
+  const paused = await getPausedSubredditNames();
+  const where  = paused.size > 0
+    ? and(eq(notifications.userId, userId), not(inArray(notifications.subreddit, [...paused])))
+    : eq(notifications.userId, userId);
+  const rows = await db
     .select()
     .from(notifications)
-    .where(eq(notifications.userId, userId))
+    .where(where)
     .orderBy(desc(notifications.sentAt));
   return c.json(rows);
 });
@@ -96,7 +106,13 @@ holderRoutes.put("/notifications/:id/done", async (c) => {
 holderRoutes.get("/accounts", async (c) => {
   const userId = c.get("userId") as string;
   const rows   = await db.select().from(holderAccounts).where(eq(holderAccounts.holderId, userId));
-  return c.json(rows);
+  const paused = await getPausedSubredditNames();
+  // Strip paused subreddits from each account's list in the response (don't mutate DB)
+  const filtered = rows.map(acc => ({
+    ...acc,
+    subreddits: (acc.subreddits ?? []).filter(s => !paused.has(s)),
+  }));
+  return c.json(filtered);
 });
 
 // POST /api/holder/accounts
