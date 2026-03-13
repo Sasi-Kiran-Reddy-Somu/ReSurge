@@ -81,7 +81,7 @@ export default function Sidebar({ subreddits, activeTab, onSwitch, onAdd, stackC
           { label:"Manage Subreddits", icon:"⚙️",  active:view==="subreddits",    color:"#9CA3AF", bg:"#111318",    onClick:onViewSubreddits,    badge: null },
           { label:"Monitors",          icon:"👁️",  active:view==="monitors",      color:"#93C5FD", bg:"#0D1626",   onClick:onViewMonitors,      badge: null },
           { label:"Holders",           icon:"👤",  active:view==="holders",       color:"#4ADE80", bg:"#071A0A",   onClick:onViewHolders,       badge: null },
-          { label:"Add Users",         icon:"➕",  active:view==="add-users",     color:"#A78BFA", bg:"#13092E",   onClick:onViewAddUsers,      badge: null },
+          { label:"Users",             icon:"👥",  active:view==="add-users",     color:"#A78BFA", bg:"#13092E",   onClick:onViewAddUsers,      badge: null },
         ].map(({label,icon,active,color,bg,onClick,badge}) => (
           <div key={label} onClick={onClick}
             style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 10px", borderRadius:7, cursor:"pointer", marginBottom:2,

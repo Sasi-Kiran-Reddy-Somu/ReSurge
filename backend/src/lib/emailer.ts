@@ -1,7 +1,8 @@
 import nodemailer from "nodemailer";
 
-const HOLDER_APP_URL = process.env.HOLDER_APP_URL ?? "http://localhost:3002";
-const FROM_EMAIL     = process.env.GMAIL_USER ?? "you@gmail.com";
+const HOLDER_APP_URL  = process.env.HOLDER_APP_URL  ?? "http://localhost:3002";
+const MONITOR_APP_URL = process.env.MONITOR_APP_URL ?? "http://localhost:3003";
+const FROM_EMAIL      = process.env.GMAIL_USER ?? "you@gmail.com";
 
 function getTransporter() {
   const user = process.env.GMAIL_USER;
@@ -10,6 +11,46 @@ function getTransporter() {
   return nodemailer.createTransport({
     service: "gmail",
     auth: { user, pass },
+  });
+}
+
+export async function sendInviteEmail(opts: {
+  toEmail: string;
+  role: "holder" | "monitor";
+}): Promise<void> {
+  const roleLabel = opts.role === "holder" ? "Holder" : "Monitor";
+  const loginUrl  = opts.role === "holder" ? HOLDER_APP_URL : MONITOR_APP_URL;
+
+  await getTransporter().sendMail({
+    from:    `"ReSurge" <${FROM_EMAIL}>`,
+    to:      opts.toEmail,
+    subject: `You've been invited to ReSurge as a ${roleLabel}`,
+    html: `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#0D0F16;font-family:'Courier New',Courier,monospace;">
+  <div style="max-width:520px;margin:0 auto;padding:40px 20px;">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:32px;">
+      <div style="width:38px;height:38px;background:#FF4500;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;">r/</div>
+      <span style="font-size:18px;font-weight:800;color:#F9FAFB;vertical-align:middle;margin-left:10px;">ReSurge</span>
+    </div>
+    <div style="background:#0F1117;border:1px solid #1F2937;border-radius:14px;padding:32px;">
+      <div style="font-size:22px;font-weight:800;color:#F9FAFB;margin-bottom:12px;">You're invited!</div>
+      <div style="font-size:14px;color:#9CA3AF;line-height:1.7;margin-bottom:24px;">
+        You've been invited to join ReSurge as a <strong style="color:#F9FAFB;">${roleLabel}</strong>.
+        Sign in with your Google account (<strong style="color:#F9FAFB;">${opts.toEmail}</strong>) to get started.
+      </div>
+      <a href="${loginUrl}" style="display:inline-block;background:#A78BFA;color:#fff;font-weight:700;padding:14px 36px;border-radius:10px;text-decoration:none;font-size:14px;font-family:'Courier New',Courier,monospace;">
+        Sign in to ReSurge →
+      </a>
+    </div>
+    <div style="margin-top:24px;text-align:center;font-size:11px;color:#374151;">
+      If you weren't expecting this, you can safely ignore this email.
+    </div>
+  </div>
+</body>
+</html>`,
   });
 }
 

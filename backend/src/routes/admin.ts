@@ -4,6 +4,7 @@ import { users, monitorAssignments, holderAccounts, invitedUsers } from "../db/s
 import { eq, sql, desc } from "drizzle-orm";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 import { hashPassword } from "../lib/auth.js";
+import { sendInviteEmail } from "../lib/emailer.js";
 
 export const adminRoutes = new Hono();
 
@@ -166,6 +167,33 @@ adminRoutes.post("/alerts/ack-all", async (c) => {
   return c.json({ ok: true });
 });
 
+// ── All users ────────────────────────────────────────────────────────────────
+
+// GET /api/admin/users — all users (except current admin)
+adminRoutes.get("/users", async (c) => {
+  const all = await db.select().from(users).orderBy(desc(users.createdAt));
+  return c.json(all.map(u => ({ id: u.id, name: u.name, email: u.email, role: u.role, roles: u.roles, createdAt: u.createdAt })));
+});
+
+// PATCH /api/admin/users/:id — update role
+adminRoutes.patch("/users/:id", async (c) => {
+  const id = c.req.param("id");
+  const { role } = await c.req.json();
+  const validRoles = ["main", "monitor", "holder"];
+  if (!role || !validRoles.includes(role)) return c.json({ error: "Invalid role" }, 400);
+  const [user] = await db.update(users).set({ role, roles: [role] }).where(eq(users.id, id)).returning();
+  if (!user) return c.json({ error: "User not found" }, 404);
+  return c.json({ id: user.id, email: user.email, name: user.name, role: user.role, roles: user.roles });
+});
+
+// DELETE /api/admin/users/:id — remove a user
+adminRoutes.delete("/users/:id", async (c) => {
+  const id = c.req.param("id");
+  await db.delete(monitorAssignments).where(eq(monitorAssignments.monitorId, id));
+  await db.delete(users).where(eq(users.id, id));
+  return c.json({ ok: true });
+});
+
 // ── Invites (RBAC) ───────────────────────────────────────────────────────────
 
 // GET /api/admin/invites
@@ -184,6 +212,12 @@ adminRoutes.post("/invites", async (c) => {
     .values({ email: email.toLowerCase().trim(), role })
     .onConflictDoUpdate({ target: invitedUsers.email, set: { role } })
     .returning();
+
+  // Send invite email (best-effort — don't fail the request if email fails)
+  sendInviteEmail({ toEmail: row.email, role: row.role as "holder" | "monitor" }).catch(err => {
+    console.error("[invite email]", err.message);
+  });
+
   return c.json(row);
 });
 
