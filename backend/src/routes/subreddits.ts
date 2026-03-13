@@ -15,7 +15,7 @@ subredditRoutes.get("/", async (c) => {
     .from(subreddits)
     .where(
       visibleOnly
-        ? and(eq(subreddits.isActive, true), eq(subreddits.visibleToHolders, true))
+        ? and(eq(subreddits.isActive, true), eq(subreddits.visibleToHolders, true), eq(subreddits.isPaused, false))
         : eq(subreddits.isActive, true)
     )
     .orderBy(subreddits.addedAt);
