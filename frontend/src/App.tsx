@@ -657,7 +657,7 @@ function MonitorDashboard({ user, onLogout }: any) {
                     </div>
                     {acc.redditUsername && <div style={{ fontSize: 11, color: C_M.muted, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{acc.emailAddress}</div>}
                   </div>
-                  <button onClick={() => deleteAccount(acc.id)} disabled={delAccBusy === acc.id}
+                  <button onClick={() => { if (window.confirm(`Remove account "${acc.redditUsername ? `u/${acc.redditUsername.replace(/^u\//, "")}` : acc.emailAddress}"? This cannot be undone.`)) deleteAccount(acc.id); }} disabled={delAccBusy === acc.id}
                     style={{ background: "none", border: "1px solid #7F1D1D", color: C_M.red, cursor: "pointer", fontFamily: "inherit", fontSize: 11, padding: "5px 12px", borderRadius: 6, fontWeight: 600, flexShrink: 0, opacity: delAccBusy === acc.id ? 0.5 : 1 }}>
                     {delAccBusy === acc.id ? "Removing…" : "Remove"}
                   </button>
@@ -686,17 +686,14 @@ function MonitorDashboard({ user, onLogout }: any) {
           <div style={{ fontSize: 12, color: C_M.muted }}>{user.email}</div>
         </div>
 
-        <div style={{ padding: "12px 20px 6px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          <div style={{ fontSize: 10, color: C_M.dim, letterSpacing: "0.08em" }}>MY ACCOUNTS ({accounts.length})</div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={() => setShowAddAcc(true)} style={{ background: "none", border: `1px solid ${C_M.accent}40`, color: C_M.accent, cursor: "pointer", fontFamily: "inherit", fontSize: 10, padding: "3px 8px", borderRadius: 5, fontWeight: 700 }}>＋ Add</button>
-            {accounts.length > 0 && <button onClick={() => setShowManageAcc(true)} style={{ background: "none", border: `1px solid ${C_M.border}`, color: C_M.sub, cursor: "pointer", fontFamily: "inherit", fontSize: 10, padding: "3px 8px", borderRadius: 5, fontWeight: 600 }}>Manage</button>}
-          </div>
+        <div style={{ padding: "12px 20px 8px", flexShrink: 0 }}>
+          <div style={{ fontSize: 10, color: C_M.dim, letterSpacing: "0.08em", marginBottom: 8 }}>MY ACCOUNTS ({accounts.length})</div>
+          <button onClick={() => setShowAddAcc(true)} style={{ ...btnM(C_M.accent, "#fff"), width: "100%", padding: "9px", fontSize: 12 }}>＋ Add Account</button>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto" }}>
           {accounts.length === 0
-            ? <div style={{ padding: "10px 20px", fontSize: 12, color: C_M.dim }}>No accounts yet. Click + Add to get started.</div>
+            ? <div style={{ padding: "10px 20px", fontSize: 12, color: C_M.dim }}>No accounts yet. Click + Add Account to get started.</div>
             : accounts.map((acc: any) => {
               const isOpen = openAccId === acc.id && section === "accounts";
               return (
@@ -718,21 +715,25 @@ function MonitorDashboard({ user, onLogout }: any) {
                       {acc.subreddits && acc.subreddits.length > 0 && (
                         <>
                           <div style={{ fontSize: 10, color: C_M.dim, letterSpacing: "0.06em", marginBottom: 7 }}>SUBREDDITS</div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                             {acc.subreddits.map((s: string) => <span key={s} style={{ background: C_M.surface, border: `1px solid ${C_M.border}`, color: C_M.sub, padding: "2px 8px", borderRadius: 10, fontSize: 10 }}>r/{s}</span>)}
                           </div>
                         </>
                       )}
-                      <button onClick={(e: any) => { e.stopPropagation(); setShowManageAcc(true); }}
-                        style={{ background: "none", border: `1px solid ${C_M.border}`, color: C_M.sub, cursor: "pointer", fontFamily: "inherit", fontSize: 10, padding: "4px 10px", borderRadius: 5, fontWeight: 600 }}>
-                        Manage Accounts
-                      </button>
                     </div>
                   )}
                 </div>
               );
             })
           }
+          {accounts.length > 0 && (
+            <div style={{ padding: "10px 20px" }}>
+              <button onClick={() => setShowManageAcc(true)}
+                style={{ background: "none", border: `1px solid ${C_M.border}`, color: C_M.sub, cursor: "pointer", fontFamily: "inherit", fontSize: 11, padding: "6px 14px", borderRadius: 6, fontWeight: 600, width: "100%" }}>
+                Manage Accounts
+              </button>
+            </div>
+          )}
         </div>
 
         <div style={{ borderTop: `1px solid ${C_M.border}`, padding: "8px 12px" }}>
@@ -1013,7 +1014,7 @@ function ManageAccountsModalH({ accounts, onClose, onDeleted, onAdd, delBusy }: 
                   </div>
                   {acc.redditUsername && <div style={{fontSize:11,color:C_H.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acc.emailAddress}</div>}
                 </div>
-                <button onClick={() => onDeleted(acc.id)} disabled={delBusy===acc.id}
+                <button onClick={() => { if (window.confirm(`Remove account "${acc.redditUsername ? `u/${acc.redditUsername.replace(/^u\//,"")}` : acc.emailAddress}"? This cannot be undone.`)) onDeleted(acc.id); }} disabled={delBusy===acc.id}
                   style={{background:"none",border:"1px solid #7F1D1D",color:"#EF4444",cursor:"pointer",fontFamily:"inherit",fontSize:11,padding:"5px 12px",borderRadius:6,fontWeight:600,flexShrink:0,opacity:delBusy===acc.id?0.5:1}}>
                   {delBusy===acc.id?"Removing…":"Remove"}
                 </button>
@@ -1117,17 +1118,14 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
           <div style={{fontSize:12,color:C_H.muted}}>{user.email}</div>
         </div>
 
-        <div style={{padding:"12px 20px 6px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
-          <div style={{fontSize:10,color:C_H.dim,letterSpacing:"0.08em"}}>MY ACCOUNTS ({accounts.length})</div>
-          <div style={{display:"flex",gap:6}}>
-            <button onClick={() => setShowAddAcc(true)} style={{background:"none",border:`1px solid ${C_H.accent}40`,color:C_H.accent,cursor:"pointer",fontFamily:"inherit",fontSize:10,padding:"3px 8px",borderRadius:5,fontWeight:700}}>＋ Add</button>
-            {accounts.length > 0 && <button onClick={() => setShowManageAcc(true)} style={{background:"none",border:`1px solid ${C_H.border}`,color:C_H.sub,cursor:"pointer",fontFamily:"inherit",fontSize:10,padding:"3px 8px",borderRadius:5,fontWeight:600}}>Manage</button>}
-          </div>
+        <div style={{padding:"12px 20px 8px",flexShrink:0}}>
+          <div style={{fontSize:10,color:C_H.dim,letterSpacing:"0.08em",marginBottom:8}}>MY ACCOUNTS ({accounts.length})</div>
+          <button onClick={() => setShowAddAcc(true)} style={{...btnH(C_H.accent,"#000"),width:"100%",padding:"9px",fontSize:12}}>＋ Add Account</button>
         </div>
 
         <div style={{flex:1,overflowY:"auto"}}>
           {accounts.length === 0
-            ? <div style={{padding:"10px 20px",fontSize:12,color:C_H.dim}}>No accounts yet. Click + Add to get started.</div>
+            ? <div style={{padding:"10px 20px",fontSize:12,color:C_H.dim}}>No accounts yet. Click + Add Account to get started.</div>
             : accounts.map((acc: any) => {
               const isOpen = String(openAccId) === String(acc.id);
               const accNotifs = notifs.filter(n => n.accountId === acc.id);
@@ -1164,18 +1162,20 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
                           </div>
                         </div>
                       )}
-                      <div style={{padding:"6px 20px 12px"}}>
-                        <button onClick={(e: any) => { e.stopPropagation(); setShowManageAcc(true); }}
-                          style={{background:"none",border:`1px solid ${C_H.border}`,color:C_H.sub,cursor:"pointer",fontFamily:"inherit",fontSize:10,padding:"4px 10px",borderRadius:5,fontWeight:600}}>
-                          Manage Accounts
-                        </button>
-                      </div>
                     </div>
                   )}
                 </div>
               );
             })
           }
+          {accounts.length > 0 && (
+            <div style={{padding:"10px 20px"}}>
+              <button onClick={() => setShowManageAcc(true)}
+                style={{background:"none",border:`1px solid ${C_H.border}`,color:C_H.sub,cursor:"pointer",fontFamily:"inherit",fontSize:11,padding:"6px 14px",borderRadius:6,fontWeight:600,width:"100%"}}>
+                Manage Accounts
+              </button>
+            </div>
+          )}
         </div>
 
         <div style={{padding:"16px 20px",borderTop:`1px solid ${C_H.border}`}}>
