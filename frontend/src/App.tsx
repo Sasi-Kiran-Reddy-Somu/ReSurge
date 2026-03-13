@@ -431,6 +431,36 @@ function HolderDetail({ holder, onBack }: any) {
           </div>
         )}
 
+        {/* ── Comment Links ── */}
+        {(() => {
+          const postedNotifs = (accountId
+            ? detail.notifications.filter((n: any) => n.accountId === accountId)
+            : detail.notifications
+          ).filter((n: any) => n.postedLink);
+          return (
+            <div style={{background:C_M.surface,border:`1px solid ${C_M.border}`,borderRadius:12,padding:"18px 22px"}}>
+              <div style={{fontSize:10,color:C_M.dim,fontWeight:700,letterSpacing:"0.1em",marginBottom:14}}>💬 COMMENT LINKS · {postedNotifs.length}</div>
+              {postedNotifs.length === 0
+                ? <div style={{fontSize:13,color:C_M.dim}}>No comment links posted yet.</div>
+                : <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {postedNotifs.map((n: any) => (
+                      <div key={n.id} style={{display:"flex",alignItems:"center",gap:14,background:"#080B12",border:`1px solid ${C_M.border}`,borderLeft:`3px solid ${C_M.green}`,borderRadius:8,padding:"12px 16px"}}>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:11,color:C_M.muted,marginBottom:3}}>r/{n.subreddit} · {new Date(n.postedAt ?? n.sentAt).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}</div>
+                          <div style={{fontSize:13,color:C_M.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500}}>{n.postTitle}</div>
+                        </div>
+                        <a href={n.postedLink} target="_blank" rel="noreferrer"
+                          style={{flexShrink:0,fontSize:12,color:C_M.green,fontWeight:700,background:"#064E3B",border:"1px solid #065F46",padding:"6px 14px",borderRadius:7,textDecoration:"none",whiteSpace:"nowrap"}}>
+                          ↗ Open Comment
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+              }
+            </div>
+          );
+        })()}
+
         <div>
           <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
             <input style={{flex:"1 1 200px",minWidth:160,background:C_M.surface,border:`1px solid ${C_M.border}`,borderRadius:8,padding:"9px 14px",color:C_M.text,fontFamily:"inherit",fontSize:13,outline:"none"}}
