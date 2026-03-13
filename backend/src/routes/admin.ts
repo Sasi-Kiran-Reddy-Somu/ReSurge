@@ -214,7 +214,7 @@ adminRoutes.post("/invites", async (c) => {
     .returning();
 
   // Send invite email (best-effort — don't fail the request if email fails)
-  sendInviteEmail({ toEmail: row.email, role: row.role as "holder" | "monitor" }).catch(err => {
+  sendInviteEmail({ toEmail: row.email, role: row.role }).catch(err => {
     console.error("[invite email]", err.message);
   });
 

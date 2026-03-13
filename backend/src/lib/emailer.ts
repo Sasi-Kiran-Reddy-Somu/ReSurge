@@ -16,10 +16,12 @@ function getTransporter() {
 
 export async function sendInviteEmail(opts: {
   toEmail: string;
-  role: "holder" | "monitor";
+  role: string;
 }): Promise<void> {
-  const roleLabel = opts.role === "holder" ? "Holder" : "Monitor";
-  const loginUrl  = opts.role === "holder" ? HOLDER_APP_URL : MONITOR_APP_URL;
+  const roleLabels: Record<string, string> = { holder: "Holder", monitor: "Monitor", main: "Admin" };
+  const roleLabel = roleLabels[opts.role] ?? opts.role;
+  const MAIN_APP_URL = process.env.MAIN_APP_URL ?? "http://localhost:3000";
+  const loginUrl = opts.role === "holder" ? HOLDER_APP_URL : opts.role === "main" ? MAIN_APP_URL : MONITOR_APP_URL;
 
   await getTransporter().sendMail({
     from:    `"ReSurge" <${FROM_EMAIL}>`,

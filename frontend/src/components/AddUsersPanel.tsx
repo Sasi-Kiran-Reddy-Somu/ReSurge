@@ -123,22 +123,34 @@ export default function UsersPanel() {
   async function deleteInvite(id: string) {
     setDelBusy(id);
     try { await req("DELETE", `/admin/invites/${id}`); loadInvites(); }
-    catch (e: any) { alert(e.message); }
+    catch (e: any) { setErr(e.message); setTab("invite"); }
     finally { setDelBusy(null); }
   }
 
   async function changeRole(id: string, newRole: string) {
     setRoleChanging(id);
-    try { await req("PATCH", `/admin/users/${id}`, { role: newRole }); loadUsers(); }
-    catch (e: any) { alert(e.message); }
+    try {
+      await req("PATCH", `/admin/users/${id}`, { role: newRole });
+      loadUsers();
+      setSuccess(`Role updated to ${ROLE_LABELS[newRole] ?? newRole}`);
+      setTab("current");
+      setTimeout(() => setSuccess(""), 3000);
+    }
+    catch (e: any) { setErr(`Failed to change role: ${e.message}`); setTab("current"); }
     finally { setRoleChanging(null); }
   }
 
   async function deleteUser(id: string) {
     if (!confirm("Delete this user? This cannot be undone.")) return;
     setDeleting(id);
-    try { await req("DELETE", `/admin/users/${id}`); loadUsers(); }
-    catch (e: any) { alert(e.message); }
+    try {
+      await req("DELETE", `/admin/users/${id}`);
+      loadUsers();
+      setSuccess("User deleted.");
+      setTab("current");
+      setTimeout(() => setSuccess(""), 3000);
+    }
+    catch (e: any) { setErr(`Failed to delete user: ${e.message}`); setTab("current"); }
     finally { setDeleting(null); }
   }
 
@@ -156,6 +168,14 @@ export default function UsersPanel() {
           <div style={{ fontSize:22, fontWeight:800, color:C.text, marginBottom:6 }}>User Management</div>
           <div style={{ fontSize:13, color:C.muted }}>Invite new members or manage existing accounts.</div>
         </div>
+
+        {/* Global status */}
+        {err     && <div style={{ marginBottom:16, fontSize:13, color:C.red,   background:"#1C0505", border:`1px solid #7F1D1D`, borderRadius:8, padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <span>⚠ {err}</span><span onClick={() => setErr("")} style={{ cursor:"pointer", opacity:0.7, marginLeft:16 }}>✕</span>
+        </div>}
+        {success && !err && <div style={{ marginBottom:16, fontSize:13, color:C.green, background:"#071A0A", border:`1px solid #14532D`, borderRadius:8, padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <span>✓ {success}</span><span onClick={() => setSuccess("")} style={{ cursor:"pointer", opacity:0.7, marginLeft:16 }}>✕</span>
+        </div>}
 
         {/* Tabs */}
         <div style={{ display:"flex", gap:4, marginBottom:24, background:"#0F1117", border:`1px solid ${C.border}`, borderRadius:10, padding:4, width:"fit-content" }}>
@@ -184,8 +204,6 @@ export default function UsersPanel() {
                     </select>
                   </div>
                 </div>
-                {err && <div style={{ fontSize:13, color:C.red, background:"#1C0505", border:"1px solid #7F1D1D", borderRadius:7, padding:"10px 14px" }}>{err}</div>}
-                {success && <div style={{ fontSize:13, color:C.green, background:"#071A0A", border:"1px solid #14532D", borderRadius:7, padding:"10px 14px" }}>✓ {success}</div>}
                 <button type="submit" disabled={busy}
                   style={{ background:C.purple, border:"none", borderRadius:8, padding:"12px 28px", color:"#fff", fontWeight:700, cursor:busy?"not-allowed":"pointer", fontFamily:"inherit", fontSize:13, alignSelf:"flex-start", opacity:busy?0.7:1 }}>
                   {busy ? "Sending…" : "Send Invite →"}
