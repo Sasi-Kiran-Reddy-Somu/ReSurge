@@ -17,23 +17,28 @@ function renderSlider(
   update: (k: string, v: number) => void,
 ) {
   const pct = Math.min(100, ((val - min) / (max - min)) * 100);
+  const btnStyle: any = { background:"#1F2937", border:"1px solid #374151", borderRadius:5, width:24, height:24, display:"flex", alignItems:"center", justifyContent:"center", color:"#F9FAFB", fontSize:14, fontWeight:700, cursor:"pointer", flexShrink:0, lineHeight:1, fontFamily:"inherit" };
   return (
     <div key={key}>
-      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
-        <span style={{ fontSize:10, color:"#6B7280" }} title={tip}>{label}</span>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+        <span style={{ fontSize:12, color:"#F9FAFB", fontWeight:600 }} title={tip}>{label}</span>
         {editingKey === key ? (
           <input type="number" min={min} value={val} autoFocus
             onChange={(e: any) => update(key, Number(e.target.value))}
             onBlur={() => setEditingKey(null)}
             onKeyDown={(e: any) => { if (e.key === "Enter" || e.key === "Escape") setEditingKey(null); }}
-            style={{ width:60, background:"#0A0C12", border:`1px solid ${color}`, borderRadius:4, padding:"1px 5px", color, fontSize:11, fontWeight:600, fontFamily:"inherit", outline:"none", textAlign:"right" }}
+            style={{ width:60, background:"#0A0C12", border:`1px solid ${color}`, borderRadius:4, padding:"1px 5px", color, fontSize:13, fontWeight:700, fontFamily:"inherit", outline:"none", textAlign:"center" }}
           />
         ) : (
-          <span style={{ fontSize:11, color, fontWeight:500, cursor:"text", userSelect:"none" }}
-            title="Double-click to type a custom value"
-            onDoubleClick={() => setEditingKey(key)}>
-            {val}{unit}
-          </span>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <button onClick={() => update(key, Math.max(min, val - 1))} style={btnStyle}>−</button>
+            <span style={{ fontSize:13, color:"#F9FAFB", fontWeight:700, minWidth:36, textAlign:"center", cursor:"text", userSelect:"none" as const }}
+              title="Double-click to type a custom value"
+              onDoubleClick={() => setEditingKey(key)}>
+              {val}{unit}
+            </span>
+            <button onClick={() => update(key, Math.min(max, val + 1))} style={btnStyle}>+</button>
+          </div>
         )}
       </div>
       <input type="range" min={min} max={max} value={val}
@@ -158,12 +163,12 @@ export default function SliderPanel({ thresholds, onSave, subreddit }: any) {
 
         {/* (c) row 1 col 2 — S2 Evaluation Window — dual-range */}
         <div style={{ gridColumn:2, gridRow:1 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
-            <span style={{ fontSize:10, color:"#6B7280" }}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+            <span style={{ fontSize:12, color:"#F9FAFB", fontWeight:600 }}
               title="Post starts being evaluated after the left bound; must hit growth % before right bound or it's discarded">
               Stack 2 — Evaluation window
             </span>
-            <span style={{ fontSize:11, color:"#3B82F6", fontWeight:500 }}>
+            <span style={{ fontSize:13, color:"#F9FAFB", fontWeight:700 }}>
               {evalStart}min – {evalEnd}min
             </span>
           </div>
