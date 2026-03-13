@@ -107,9 +107,9 @@ adminRoutes.post("/backfill-monitors", async (c) => {
   return c.json({ patched: results.length, results });
 });
 
-// GET /api/admin/holders — users who have the "holder" role
+// GET /api/admin/holders — users who have "holder" OR "monitor" role (monitors are also holders)
 adminRoutes.get("/holders", async (c) => {
-  const holders = await db.select().from(users).where(sql`'holder' = ANY(${users.roles})`);
+  const holders = await db.select().from(users).where(sql`'holder' = ANY(${users.roles}) OR 'monitor' = ANY(${users.roles})`);
   return c.json(holders.map((h) => ({ id: h.id, name: h.name, email: h.email, roles: h.roles, createdAt: h.createdAt })));
 });
 
