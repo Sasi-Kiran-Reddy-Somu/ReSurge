@@ -63,7 +63,7 @@ async function bootstrap() {
 
   // Auto-apply any pending DB migrations
   try {
-    const migrationsFolder = resolve(__dirname, "../../drizzle");
+    const migrationsFolder = resolve(__dirname, "../drizzle");
     await migrate(db, { migrationsFolder });
     console.log("✓ DB migrations applied");
   } catch (err) {
