@@ -62,6 +62,8 @@ export function createPollWorker() {
         throw err;
       }
 
+      console.log(`  Fetched ${fetchedPosts.length} total posts from Reddit`);
+
       // ── Step 3: Insert new posts per subreddit ─────────────
       const MAX_POST_AGE_MS = 2 * 60 * 60 * 1000;
       const newCounts: Record<string, number> = {};

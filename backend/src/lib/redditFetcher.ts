@@ -31,7 +31,7 @@ export async function fetchNewPostsMulti(
         headers: { "User-Agent": USER_AGENT, "Accept": "application/json" },
       });
       if (res.status === 429) throw new Error("Rate limited by Reddit");
-      if (!res.ok) continue; // skip failed chunk, don't abort whole poll
+      if (!res.ok) { console.warn(`[Fetcher] Chunk ${chunk.join("+")} HTTP ${res.status}`); continue; }
 
       const data = await res.json() as {
         data?: { children?: Array<{ data: RedditPost }> }
