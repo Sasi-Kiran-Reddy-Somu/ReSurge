@@ -206,7 +206,7 @@ adminRoutes.get("/invites", async (c) => {
 adminRoutes.post("/invites", async (c) => {
   const { email, role } = await c.req.json();
   if (!email || !role) return c.json({ error: "email and role required" }, 400);
-  if (!["monitor", "holder"].includes(role)) return c.json({ error: "Invalid role" }, 400);
+  if (!["monitor", "holder", "main"].includes(role)) return c.json({ error: "Invalid role" }, 400);
 
   const [row] = await db.insert(invitedUsers)
     .values({ email: email.toLowerCase().trim(), role })

@@ -16,7 +16,7 @@ function req(method: string, path: string, body?: any) {
 
 const ROLE_COLORS: any   = { monitor:C.blue, holder:C.green, main:"#F59E0B" };
 const ROLE_LABELS: any   = { monitor:"Monitor", holder:"Holder", main:"Admin" };
-const ROLE_OPTIONS = ["holder", "monitor"];
+const ROLE_OPTIONS = ["holder", "monitor", "main"];
 
 function SettingsDropdown({ user, onRoleChange, onDelete }: { user: any; onRoleChange: (id: string, role: string) => void; onDelete: (id: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -180,6 +180,7 @@ export default function UsersPanel() {
                       style={{ ...inp, width:"auto", paddingRight:36, cursor:"pointer", appearance:"auto" as any, background:C.surface }}>
                       <option value="holder">Holder</option>
                       <option value="monitor">Monitor</option>
+                      <option value="main">Admin</option>
                     </select>
                   </div>
                 </div>

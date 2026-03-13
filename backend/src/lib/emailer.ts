@@ -31,7 +31,7 @@ export async function sendInviteEmail(opts: {
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#0D0F16;font-family:'Courier New',Courier,monospace;">
   <div style="max-width:520px;margin:0 auto;padding:40px 20px;">
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:32px;">
+    <div style="margin-bottom:32px;">
       <div style="width:38px;height:38px;background:#FF4500;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;">r/</div>
       <span style="font-size:18px;font-weight:800;color:#F9FAFB;vertical-align:middle;margin-left:10px;">ReSurge</span>
     </div>
@@ -53,6 +53,7 @@ export async function sendInviteEmail(opts: {
 </html>`,
   });
 }
+
 
 export async function sendStack4Notification(opts: {
   toEmail:    string;
