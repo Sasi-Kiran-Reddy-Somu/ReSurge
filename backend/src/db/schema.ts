@@ -130,9 +130,18 @@ export const notifications = pgTable("notifications", {
   postedAt:   timestamp("posted_at"),
 });
 
+// ─── invited_users (admin-managed invite list for RBAC) ────────
+export const invitedUsers = pgTable("invited_users", {
+  id:        uuid("id").primaryKey().defaultRandom(),
+  email:     text("email").notNull().unique(),
+  role:      text("role").notNull(), // "monitor" | "holder"
+  invitedAt: timestamp("invited_at").notNull().defaultNow(),
+});
+
 export type DbSubreddit          = typeof subreddits.$inferSelect;
 export type DbPost               = typeof posts.$inferSelect;
 export type DbThresholds         = typeof thresholds.$inferSelect;
 export type DbGeneratedComment   = typeof generatedComments.$inferSelect;
 export type DbUser               = typeof users.$inferSelect;
 export type DbNotification       = typeof notifications.$inferSelect;
+export type DbInvitedUser        = typeof invitedUsers.$inferSelect;

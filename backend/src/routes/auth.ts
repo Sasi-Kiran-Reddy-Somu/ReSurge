@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 import { db } from "../db/client.js";
-import { users } from "../db/schema.js";
+import { users, invitedUsers } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken } from "../lib/auth.js";
+
+const ADMIN_EMAILS = ["seo@cubehq.ai", "sasi@cubehq.ai"];
 
 export const authRoutes = new Hono();
 
@@ -62,6 +64,70 @@ authRoutes.get("/roles", async (c) => {
   if (!user) return c.json({ roles: [] });
   const roles = (user.roles && user.roles.length > 0) ? user.roles : [user.role];
   return c.json({ roles });
+});
+
+// POST /api/auth/google — Google OAuth sign-in (all portals)
+authRoutes.post("/google", async (c) => {
+  const { credential } = await c.req.json();
+  if (!credential) return c.json({ error: "credential required" }, 400);
+
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) return c.json({ error: "Google OAuth not configured" }, 500);
+
+  // Verify Google ID token
+  const { OAuth2Client } = await import("google-auth-library");
+  const client = new OAuth2Client(clientId);
+  let payload: any;
+  try {
+    const ticket = await client.verifyIdToken({ idToken: credential, audience: clientId });
+    payload = ticket.getPayload();
+  } catch {
+    return c.json({ error: "Invalid Google credential" }, 401);
+  }
+
+  const email = payload?.email?.toLowerCase();
+  const name  = payload?.name ?? email;
+  if (!email) return c.json({ error: "No email from Google" }, 400);
+
+  // Determine role
+  let role: string;
+  let roles: string[];
+  let adminAcknowledged = true;
+
+  if (ADMIN_EMAILS.includes(email)) {
+    role  = "main";
+    roles = ["main"];
+  } else {
+    const [invite] = await db.select().from(invitedUsers).where(eq(invitedUsers.email, email)).limit(1);
+    if (!invite) return c.json({ error: "You haven't been invited. Contact the admin." }, 403);
+    role  = invite.role;
+    roles = [invite.role];
+    adminAcknowledged = false;
+  }
+
+  // Find or create user
+  let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const isNewSignup = !user;
+
+  if (!user) {
+    [user] = await db.insert(users).values({
+      email, passwordHash: "", name, role, roles, adminAcknowledged,
+    }).returning();
+  } else {
+    // Ensure the role from invite is present
+    const currentRoles = user.roles?.length ? user.roles : [user.role];
+    if (!currentRoles.includes(role)) {
+      const merged = [...new Set([...currentRoles, role])];
+      [user] = await db.update(users).set({ roles: merged }).where(eq(users.id, user.id)).returning();
+    }
+  }
+
+  const token = signToken({ userId: user.id, role: user.role });
+  return c.json({
+    token,
+    user:        { id: user.id, email: user.email, name: user.name, role: user.role, roles: user.roles },
+    isNewSignup,
+  });
 });
 
 // POST /api/auth/verify  (validate a token — used by holder app deep links)

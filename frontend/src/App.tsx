@@ -10,6 +10,7 @@ import AllNotifications from "./components/AllNotifications";
 import PostHistory      from "./components/PostHistory";
 import SubredditsPanel  from "./components/SubredditsPanel";
 import AlertsPanel     from "./components/AlertsPanel";
+import AddUsersPanel   from "./components/AddUsersPanel";
 
 // ─────────────────────────────────────────────────────────────
 // Shared constants
@@ -33,104 +34,92 @@ function decodeJwt(t: string): any {
 }
 
 // ─────────────────────────────────────────────────────────────
-// LoginGate — shared across all roles, no cross-port redirect
+// LoginGate — Google OAuth only, no role picker
 // ─────────────────────────────────────────────────────────────
 function LoginGate({ onAuth }: { onAuth: (token: string, user: any, isNewSignup: boolean) => void }) {
-  const [step,     setStep]     = useState("pick"); // "pick" | "form"
-  const [action,   setAction]   = useState("");     // "signin" | "signup"
-  const [role,     setRole]     = useState("");
-  const [form,     setForm]     = useState({ email:"", password:"", name:"", phone:"" });
-  const [err,      setErr]      = useState("");
-  const [busy,     setBusy]     = useState(false);
-  const [showPass, setShowPass] = useState(false);
+  const btnRef = useRef<any>(null);
+  const [err,  setErr]  = useState("");
+  const [busy, setBusy] = useState(false);
 
-  function pick(act: string, r: string) { setAction(act); setRole(r); setStep("form"); setErr(""); }
+  useEffect(() => {
+    const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) { setErr("Google Client ID not configured (VITE_GOOGLE_CLIENT_ID)"); return; }
 
-  async function submit(e: any) {
-    e.preventDefault(); setErr(""); setBusy(true);
-    try {
-      let data: any;
-      if (action === "signup") {
-        const res = await fetch("/api/auth/signup", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({...form, role}) });
-        data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "Signup failed");
-      } else {
-        const res = await fetch("/api/auth/login", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ email:form.email, password:form.password, loginAs:role }) });
-        data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "Login failed");
+    function initGoogle() {
+      (window as any).google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleCredential,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+      if (btnRef.current) {
+        (window as any).google.accounts.id.renderButton(btnRef.current, {
+          theme: "filled_black",
+          size: "large",
+          text: "continue_with",
+          shape: "rectangular",
+          width: 280,
+        });
       }
+    }
+
+    if ((window as any).google?.accounts?.id) {
+      initGoogle();
+    } else {
+      const existing = document.querySelector('script[src*="accounts.google.com/gsi"]');
+      if (existing) {
+        (existing as any).addEventListener("load", initGoogle);
+      } else {
+        const s = document.createElement("script");
+        s.src = "https://accounts.google.com/gsi/client";
+        s.async = true; s.defer = true;
+        s.onload = initGoogle;
+        document.head.appendChild(s);
+      }
+    }
+  }, []);
+
+  async function handleCredential(response: any) {
+    setBusy(true); setErr("");
+    try {
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: response.credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Sign-in failed");
       localStorage.setItem("token", data.token);
-      onAuth(data.token, data.user, action === "signup");
-    } catch(e: any) { setErr(e.message); }
-    finally { setBusy(false); }
+      localStorage.setItem("user_data", JSON.stringify(data.user));
+      onAuth(data.token, data.user, data.isNewSignup ?? false);
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
-  if (step === "pick") return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#0D0F16", fontFamily:"'IBM Plex Sans',sans-serif" }}>
-      <div style={{ width:580 }}>
-        <div style={{ textAlign:"center", marginBottom:40 }}>
-          <div style={{ width:44, height:44, background:"#FF4500", borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700, color:"#fff", margin:"0 auto 14px" }}>r/</div>
-          <div style={{ fontFamily:"'IBM Plex Sans',sans-serif", fontWeight:800, fontSize:26, color:"#F9FAFB" }}>ReSurge</div>
-          <div style={{ color:"#6B7280", fontSize:13, marginTop:6 }}>Choose how you want to continue</div>
-        </div>
-        <div style={{ marginBottom:28 }}>
-          <div style={{ fontSize:10, color:"#374151", letterSpacing:"1px", marginBottom:12, textAlign:"center" }}>SIGN IN AS</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
-            {["main","monitor","holder"].map(r => (
-              <div key={r} onClick={() => pick("signin", r)} style={{ background:"#0F1117", border:`1px solid ${ROLE_COLORS[r]}30`, borderRadius:12, padding:"20px 16px", cursor:"pointer", textAlign:"center", transition:"all 0.15s" }}
-                onMouseEnter={(e: any) => { e.currentTarget.style.border=`1px solid ${ROLE_COLORS[r]}`; e.currentTarget.style.background=`${ROLE_COLORS[r]}08`; }}
-                onMouseLeave={(e: any) => { e.currentTarget.style.border=`1px solid ${ROLE_COLORS[r]}30`; e.currentTarget.style.background="#0F1117"; }}>
-                <div style={{ width:36, height:36, borderRadius:9, background:`${ROLE_COLORS[r]}18`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 10px" }}>
-                  <div style={{ width:10, height:10, borderRadius:"50%", background:ROLE_COLORS[r] }}/>
-                </div>
-                <div style={{ fontSize:13, fontWeight:700, color:"#F9FAFB", marginBottom:4 }}>{ROLE_LABELS[r]}</div>
-                <div style={{ fontSize:11, color:"#6B7280" }}>{ROLE_DESC[r]}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize:10, color:"#374151", letterSpacing:"1px", marginBottom:12, textAlign:"center" }}>SIGN UP AS</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-            {["monitor","holder"].map(r => (
-              <div key={r} onClick={() => pick("signup", r)} style={{ background:"#0F1117", border:"1px solid #1F2937", borderRadius:12, padding:"16px", cursor:"pointer", display:"flex", alignItems:"center", gap:12, transition:"all 0.15s" }}
-                onMouseEnter={(e: any) => { e.currentTarget.style.border=`1px solid ${ROLE_COLORS[r]}`; }}
-                onMouseLeave={(e: any) => { e.currentTarget.style.border="1px solid #1F2937"; }}>
-                <div style={{ width:8, height:8, borderRadius:"50%", background:ROLE_COLORS[r], flexShrink:0 }}/>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:600, color:"#9CA3AF" }}>Create {ROLE_LABELS[r]} account</div>
-                  <div style={{ fontSize:11, color:"#374151", marginTop:2 }}>{ROLE_DESC[r]}</div>
-                </div>
-              </div>
-            ))}
-          </div>
+  return (
+    <div style={{ display:"flex", height:"100vh", background:"#0D0F16", fontFamily:"'IBM Plex Sans',sans-serif" }}>
+      {/* Left: Branding */}
+      <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:60, borderRight:"1px solid #1F2937" }}>
+        <div style={{ width:72, height:72, background:"#FF4500", borderRadius:18, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, fontWeight:800, color:"#fff", marginBottom:32 }}>r/</div>
+        <div style={{ fontSize:48, fontWeight:800, color:"#F9FAFB", letterSpacing:"-0.03em", marginBottom:14 }}>ReSurge</div>
+        <div style={{ fontSize:16, color:"#6B7280", maxWidth:340, textAlign:"center", lineHeight:1.7 }}>
+          Reddit viral post tracker — catch trending posts before they blow up.
         </div>
       </div>
-    </div>
-  );
-
-  return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#0D0F16", fontFamily:"'IBM Plex Sans',sans-serif" }}>
-      <div style={{ width:420 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:28 }}>
-          <div style={{ width:10, height:10, borderRadius:"50%", background:ROLE_COLORS[role] }}/>
-          <span style={{ fontSize:14, fontWeight:700, color:ROLE_COLORS[role] }}>{action==="signin" ? "Sign in as" : "Create"} {ROLE_LABELS[role]} account</span>
+      {/* Right: Sign-in */}
+      <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:60 }}>
+        <div style={{ width:320 }}>
+          <div style={{ marginBottom:36 }}>
+            <div style={{ fontSize:24, fontWeight:700, color:"#F9FAFB", marginBottom:8 }}>Welcome back</div>
+            <div style={{ fontSize:14, color:"#6B7280" }}>Sign in with your Google account to continue.</div>
+          </div>
+          {busy && <div style={{ fontSize:13, color:"#6B7280", marginBottom:16 }}>Signing in…</div>}
+          <div ref={btnRef} />
+          {err && <div style={{ marginTop:20, fontSize:13, color:"#EF4444", background:"#1C0505", border:"1px solid #7F1D1D", borderRadius:8, padding:"12px 16px" }}>{err}</div>}
         </div>
-        <form onSubmit={submit} style={{ display:"flex", flexDirection:"column", gap:16 }}>
-          {action === "signup" && (
-            <>
-              <div><label style={{ fontSize:11, color:"#6B7280", display:"block", marginBottom:6 }}>Full Name</label><input style={inp} value={form.name} onChange={(e:any)=>setForm({...form,name:e.target.value})} required /></div>
-              <div><label style={{ fontSize:11, color:"#6B7280", display:"block", marginBottom:6 }}>Phone (optional)</label><input style={inp} value={form.phone} onChange={(e:any)=>setForm({...form,phone:e.target.value})} /></div>
-            </>
-          )}
-          <div><label style={{ fontSize:11, color:"#6B7280", display:"block", marginBottom:6 }}>Email Address</label><input type="email" style={inp} value={form.email} onChange={(e:any)=>setForm({...form,email:e.target.value})} required /></div>
-          <div><label style={{ fontSize:11, color:"#6B7280", display:"block", marginBottom:6 }}>Password</label><div style={{ position:"relative" }}><input type={showPass?"text":"password"} style={{...inp,paddingRight:38}} value={form.password} onChange={(e:any)=>setForm({...form,password:e.target.value})} required /><button type="button" onClick={()=>setShowPass(p=>!p)} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:"#6B7280", fontSize:15, lineHeight:1, padding:0 }}>{showPass?"🙈":"👁"}</button></div></div>
-          {err && <div style={{ color:"#F87171", fontSize:12 }}>{err}</div>}
-          <button type="submit" disabled={busy} style={{ background:ROLE_COLORS[role], border:"none", borderRadius:8, padding:"12px", width:"100%", color: role==="holder" ? "#000" : "#fff", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>
-            {busy ? "Please wait..." : `${action==="signin" ? "Sign in" : "Create account"} →`}
-          </button>
-        </form>
-        <div onClick={() => { setStep("pick"); setErr(""); }} style={{ textAlign:"center", marginTop:16, fontSize:12, color:"#6B7280", cursor:"pointer" }}>← Back to options</div>
       </div>
     </div>
   );
@@ -201,11 +190,13 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
         onViewSubreddits={() => changeView("subreddits")}
         onViewAlerts={() => changeView("alerts")}
         alertCount={alertCount}
+        onViewAddUsers={() => changeView("add-users")}
         onLogout={onLogout}
       />
 
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-        {view === "monitors" ? <MonitorPanel /> :
+        {view === "add-users" ? <AddUsersPanel /> :
+         view === "monitors" ? <MonitorPanel /> :
          view === "holders" ? (
            selectedHolder
              ? <HolderDetail holder={selectedHolder} onBack={() => setSelectedHolder(null)} />

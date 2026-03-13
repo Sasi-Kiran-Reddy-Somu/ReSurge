@@ -8,105 +8,60 @@ const statusColor = s => s==="posted"?C.green:s==="done"?C.dim:s==="opened"?C.bl
 const displayStatus = s => s==="sent"?"new":s;
 function timeAgo(ts){const d=(Date.now()-new Date(ts).getTime())/1000;if(d<60)return`${Math.round(d)}s ago`;if(d<3600)return`${Math.round(d/60)}m ago`;if(d<86400)return`${Math.round(d/3600)}h ago`;return`${Math.round(d/86400)}d ago`;}
 
-const ROLE_LABELS={main:"Main Admin",monitor:"Monitor",holder:"Holder"};
-const ROLE_PORTS={main:3000,monitor:3003,holder:3002};
-const ROLE_COLORS={main:"#FF4500",monitor:"#3B82F6",holder:"#22C55E"};
-const ROLE_DESC={main:"Admin dashboard & tracker",monitor:"Oversee holder activity",holder:"Post notifications & comments"};
-const THIS_ROLE="holder";
 
 function AuthScreen({onAuth}){
-  const [step,setStep]=useState("pick"); // "pick" | "form"
-  const [action,setAction]=useState(""); // "signin" | "signup"
-  const [role,setRole]=useState("");
-  const [form,setForm]=useState({email:"",password:"",name:"",phone:""});
-  const [err,setErr]=useState("");const [busy,setBusy]=useState(false);const [showPass,setShowPass]=useState(false);
-  const f=k=>e=>setForm(p=>({...p,[k]:e.target.value}));
+  const btnRef=useRef(null);
+  const [err,setErr]=useState(""); const [busy,setBusy]=useState(false);
 
-  function pick(action,role){setAction(action);setRole(role);setStep("form");setErr("");}
+  useEffect(()=>{
+    const clientId=import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if(!clientId){setErr("Google Client ID not configured");return;}
 
-  async function submit(e){
-    e.preventDefault();setErr("");setBusy(true);
+    function initGoogle(){
+      window.google.accounts.id.initialize({client_id:clientId,callback:handleCredential,auto_select:false,cancel_on_tap_outside:true});
+      if(btnRef.current){
+        window.google.accounts.id.renderButton(btnRef.current,{theme:"filled_black",size:"large",text:"continue_with",shape:"rectangular",width:280});
+      }
+    }
+
+    if(window.google?.accounts?.id){initGoogle();}
+    else{
+      const existing=document.querySelector('script[src*="accounts.google.com/gsi"]');
+      if(existing){existing.addEventListener("load",initGoogle);}
+      else{const s=document.createElement("script");s.src="https://accounts.google.com/gsi/client";s.async=s.defer=true;s.onload=initGoogle;document.head.appendChild(s);}
+    }
+  },[]);
+
+  async function handleCredential(response){
+    setBusy(true);setErr("");
     try{
-      let res;
-      if(action==="signup"){
-        res=await api.signup({...form,role});
-      } else {
-        res=await api.login({email:form.email,password:form.password,loginAs:role});
-      }
-      if(role===THIS_ROLE){
-        localStorage.setItem("token",res.token);onAuth(res.user,action==="signup");
-      } else {
-        window.location.href=`http://localhost:${ROLE_PORTS[role]}?token=${encodeURIComponent(res.token)}&role=${role}`;
-      }
+      const res=await fetch("/api/auth/google",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({credential:response.credential})});
+      const data=await res.json();
+      if(!res.ok)throw new Error(data.error??"Sign-in failed");
+      if(!data.user.roles?.includes("holder")&&data.user.role!=="holder")throw new Error("This account doesn't have holder access. Contact the admin.");
+      localStorage.setItem("token",data.token);
+      localStorage.setItem("user_data",JSON.stringify(data.user));
+      onAuth(data.user,data.isNewSignup??false);
     }catch(e){setErr(e.message);}finally{setBusy(false);}
   }
 
-  if(step==="pick") return(
-    <div style={{display:"flex",height:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",alignItems:"center",justifyContent:"center"}}>
-      <div style={{width:580}}>
-        <div style={{textAlign:"center",marginBottom:40}}>
-          <div style={{width:44,height:44,background:"#FF4500",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:"#fff",margin:"0 auto 14px"}}>r/</div>
-          <div style={{fontSize:26,fontWeight:800,color:C.text,fontFamily:"'IBM Plex Sans',sans-serif"}}>ReSurge</div>
-          <div style={{color:C.muted,fontSize:13,marginTop:6}}>Choose how you want to continue</div>
-        </div>
-        <div style={{marginBottom:28}}>
-          <div style={{fontSize:10,color:C.dim,letterSpacing:"1px",marginBottom:12,textAlign:"center"}}>SIGN IN AS</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-            {["main","monitor","holder"].map(r=>(
-              <div key={r} onClick={()=>pick("signin",r)} style={{background:C.surface,border:`1px solid ${ROLE_COLORS[r]}30`,borderRadius:12,padding:"20px 16px",cursor:"pointer",textAlign:"center",transition:"all 0.15s"}}
-                onMouseEnter={e=>{e.currentTarget.style.border=`1px solid ${ROLE_COLORS[r]}`;e.currentTarget.style.background=`${ROLE_COLORS[r]}08`;}}
-                onMouseLeave={e=>{e.currentTarget.style.border=`1px solid ${ROLE_COLORS[r]}30`;e.currentTarget.style.background=C.surface;}}>
-                <div style={{width:36,height:36,borderRadius:9,background:`${ROLE_COLORS[r]}18`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}}>
-                  <div style={{width:10,height:10,borderRadius:"50%",background:ROLE_COLORS[r]}}/>
-                </div>
-                <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:4}}>{ROLE_LABELS[r]}</div>
-                <div style={{fontSize:11,color:C.muted}}>{ROLE_DESC[r]}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div style={{fontSize:10,color:C.dim,letterSpacing:"1px",marginBottom:12,textAlign:"center"}}>SIGN UP AS</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            {["monitor","holder"].map(r=>(
-              <div key={r} onClick={()=>pick("signup",r)} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all 0.15s"}}
-                onMouseEnter={e=>{e.currentTarget.style.border=`1px solid ${ROLE_COLORS[r]}`;}}
-                onMouseLeave={e=>{e.currentTarget.style.border=`1px solid ${C.border}`;}}>
-                <div style={{width:8,height:8,borderRadius:"50%",background:ROLE_COLORS[r],flexShrink:0}}/>
-                <div>
-                  <div style={{fontSize:13,fontWeight:600,color:C.sub}}>Create {ROLE_LABELS[r]} account</div>
-                  <div style={{fontSize:11,color:C.dim,marginTop:2}}>{ROLE_DESC[r]}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   return(
-    <div style={{display:"flex",height:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",alignItems:"center",justifyContent:"center"}}>
-      <div style={{width:420}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:28}}>
-          <div style={{width:10,height:10,borderRadius:"50%",background:ROLE_COLORS[role]}}/>
-          <span style={{fontSize:14,fontWeight:700,color:ROLE_COLORS[role]}}>{action==="signin"?"Sign in as":"Create"} {ROLE_LABELS[role]} account</span>
+    <div style={{display:"flex",height:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif"}}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:60,borderRight:`1px solid ${C.border}`}}>
+        <div style={{width:72,height:72,background:"#FF4500",borderRadius:18,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:800,color:"#fff",marginBottom:32}}>r/</div>
+        <div style={{fontSize:48,fontWeight:800,color:C.text,letterSpacing:"-0.03em",marginBottom:14}}>ReSurge</div>
+        <div style={{fontSize:16,color:C.muted,maxWidth:340,textAlign:"center",lineHeight:1.7}}>Post viral Reddit content — get notified when posts start trending.</div>
+      </div>
+      <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:60}}>
+        <div style={{width:320}}>
+          <div style={{marginBottom:36}}>
+            <div style={{fontSize:24,fontWeight:700,color:C.text,marginBottom:8}}>Holder Portal</div>
+            <div style={{fontSize:14,color:C.muted}}>Sign in with your Google account to continue.</div>
+          </div>
+          {busy&&<div style={{fontSize:13,color:C.muted,marginBottom:16}}>Signing in…</div>}
+          <div ref={btnRef}/>
+          {err&&<div style={{marginTop:20,fontSize:13,color:C.red,background:"#1C0505",border:"1px solid #7F1D1D",borderRadius:8,padding:"12px 16px"}}>{err}</div>}
         </div>
-        <form onSubmit={submit} style={{display:"flex",flexDirection:"column",gap:16}}>
-          {action==="signup"&&(
-            <>
-              <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:6}}>Full Name</label><input style={inp} value={form.name} onChange={f("name")} required/></div>
-              <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:6}}>Phone (optional)</label><input style={inp} value={form.phone} onChange={f("phone")}/></div>
-            </>
-          )}
-          <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:6}}>Email Address</label><input style={inp} type="email" value={form.email} onChange={f("email")} required/></div>
-          <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:6}}>Password</label><div style={{position:"relative"}}><input style={{...inp,paddingRight:38}} type={showPass?"text":"password"} value={form.password} onChange={f("password")} required/><button type="button" onClick={()=>setShowPass(p=>!p)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:15,lineHeight:1,padding:0}}>{showPass?"🙈":"👁"}</button></div></div>
-          {err&&<div style={{color:C.red,fontSize:13}}>{err}</div>}
-          <button type="submit" style={{...btn(ROLE_COLORS[role],role==="holder"?"#000":"#fff"),padding:"13px",fontSize:14}} disabled={busy}>
-            {busy?"Please wait...":`${action==="signin"?"Sign in":"Create account"} →`}
-          </button>
-        </form>
-        <div onClick={()=>{setStep("pick");setErr("");}} style={{textAlign:"center",marginTop:16,fontSize:12,color:C.dim,cursor:"pointer"}}>← Back to options</div>
       </div>
     </div>
   );

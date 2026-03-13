@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../db/client.js";
-import { users, monitorAssignments, holderAccounts } from "../db/schema.js";
-import { eq, sql } from "drizzle-orm";
+import { users, monitorAssignments, holderAccounts, invitedUsers } from "../db/schema.js";
+import { eq, sql, desc } from "drizzle-orm";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 import { hashPassword } from "../lib/auth.js";
 
@@ -163,5 +163,33 @@ adminRoutes.post("/alerts/ack/:userId", async (c) => {
 // POST /api/admin/alerts/ack-all — mark all unacknowledged as seen
 adminRoutes.post("/alerts/ack-all", async (c) => {
   await db.update(users).set({ adminAcknowledged: true }).where(eq(users.adminAcknowledged, false));
+  return c.json({ ok: true });
+});
+
+// ── Invites (RBAC) ───────────────────────────────────────────────────────────
+
+// GET /api/admin/invites
+adminRoutes.get("/invites", async (c) => {
+  const rows = await db.select().from(invitedUsers).orderBy(desc(invitedUsers.invitedAt));
+  return c.json(rows);
+});
+
+// POST /api/admin/invites
+adminRoutes.post("/invites", async (c) => {
+  const { email, role } = await c.req.json();
+  if (!email || !role) return c.json({ error: "email and role required" }, 400);
+  if (!["monitor", "holder"].includes(role)) return c.json({ error: "Invalid role" }, 400);
+
+  const [row] = await db.insert(invitedUsers)
+    .values({ email: email.toLowerCase().trim(), role })
+    .onConflictDoUpdate({ target: invitedUsers.email, set: { role } })
+    .returning();
+  return c.json(row);
+});
+
+// DELETE /api/admin/invites/:id
+adminRoutes.delete("/invites/:id", async (c) => {
+  const id = c.req.param("id");
+  await db.delete(invitedUsers).where(eq(invitedUsers.id, id));
   return c.json({ ok: true });
 });
