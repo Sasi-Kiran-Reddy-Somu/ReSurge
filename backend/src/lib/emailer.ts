@@ -14,21 +14,8 @@ function getTransporter() {
   });
 }
 
-export async function sendInviteEmail(opts: {
-  toEmail: string;
-  role: string;
-}): Promise<void> {
-  const roleLabels: Record<string, string> = { holder: "Holder", monitor: "Monitor", main: "Admin" };
-  const roleLabel = roleLabels[opts.role] ?? opts.role;
-  const MAIN_APP_URL = process.env.MAIN_APP_URL ?? "http://localhost:3000";
-  const loginUrl = opts.role === "holder" ? HOLDER_APP_URL : opts.role === "main" ? MAIN_APP_URL : MONITOR_APP_URL;
-
-  await getTransporter().sendMail({
-    from:    `"ReSurge" <${FROM_EMAIL}>`,
-    to:      opts.toEmail,
-    subject: `You've been invited to ReSurge as a ${roleLabel}`,
-    html: `
-<!DOCTYPE html>
+function buildInviteHtml(opts: { toEmail: string; roleLabel: string; loginUrl: string }) {
+  return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#0D0F16;font-family:'Courier New',Courier,monospace;">
@@ -40,10 +27,10 @@ export async function sendInviteEmail(opts: {
     <div style="background:#0F1117;border:1px solid #1F2937;border-radius:14px;padding:32px;">
       <div style="font-size:22px;font-weight:800;color:#F9FAFB;margin-bottom:12px;">You're invited!</div>
       <div style="font-size:14px;color:#9CA3AF;line-height:1.7;margin-bottom:24px;">
-        You've been invited to join ReSurge as a <strong style="color:#F9FAFB;">${roleLabel}</strong>.
+        You've been invited to join ReSurge as a <strong style="color:#F9FAFB;">${opts.roleLabel}</strong>.
         Sign in with your Google account (<strong style="color:#F9FAFB;">${opts.toEmail}</strong>) to get started.
       </div>
-      <a href="${loginUrl}" style="display:inline-block;background:#A78BFA;color:#fff;font-weight:700;padding:14px 36px;border-radius:10px;text-decoration:none;font-size:14px;font-family:'Courier New',Courier,monospace;">
+      <a href="${opts.loginUrl}" style="display:inline-block;background:#A78BFA;color:#fff;font-weight:700;padding:14px 36px;border-radius:10px;text-decoration:none;font-size:14px;font-family:'Courier New',Courier,monospace;">
         Sign in to ReSurge →
       </a>
     </div>
@@ -52,8 +39,39 @@ export async function sendInviteEmail(opts: {
     </div>
   </div>
 </body>
-</html>`,
-  });
+</html>`;
+}
+
+export async function sendInviteEmail(opts: {
+  toEmail: string;
+  role: string;
+}): Promise<void> {
+  const roleLabels: Record<string, string> = { holder: "Holder", monitor: "Monitor", main: "Admin" };
+  const roleLabel = roleLabels[opts.role] ?? opts.role;
+  const MAIN_APP_URL = process.env.MAIN_APP_URL ?? "http://localhost:3000";
+  const loginUrl = opts.role === "holder" ? HOLDER_APP_URL : opts.role === "main" ? MAIN_APP_URL : MONITOR_APP_URL;
+  const subject = `You've been invited to ReSurge as a ${roleLabel}`;
+  const html = buildInviteHtml({ toEmail: opts.toEmail, roleLabel, loginUrl });
+
+  // Try Gmail first, fall back to Resend
+  const gmailUser = process.env.GMAIL_USER;
+  const gmailPass = process.env.GMAIL_APP_PASSWORD;
+  if (gmailUser && gmailPass) {
+    try {
+      await getTransporter().sendMail({ from: `"ReSurge" <${FROM_EMAIL}>`, to: opts.toEmail, subject, html });
+      console.log("[invite email] sent via Gmail to", opts.toEmail);
+      return;
+    } catch (err: any) {
+      console.error("[invite email] Gmail failed, trying Resend:", err.message);
+    }
+  }
+
+  // Resend fallback
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) throw new Error("No email provider configured (GMAIL_USER/GMAIL_APP_PASSWORD or RESEND_API_KEY required)");
+  const { Resend } = await import("resend");
+  await new Resend(resendKey).emails.send({ from: "ReSurge <onboarding@resend.dev>", to: opts.toEmail, subject, html });
+  console.log("[invite email] sent via Resend to", opts.toEmail);
 }
 
 
