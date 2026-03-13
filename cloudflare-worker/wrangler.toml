@@ -1,0 +1,7 @@
+name = "resurge-reddit-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+# Set WORKER_SECRET in the Cloudflare dashboard under Worker → Settings → Variables
+# (don't put the actual secret here — this file is in git)

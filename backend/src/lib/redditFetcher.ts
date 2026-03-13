@@ -2,14 +2,22 @@ import type { RedditPost } from "../types/index.js";
 
 const USER_AGENT = "ReSurge/1.0 (internal tool)";
 
-// Max subreddits per multi-sub request. Each call gets limit=100 posts shared
-// across CHUNK_SIZE subs (~20 each). Tune higher to reduce calls, lower for more coverage.
+// Max subreddits per multi-sub request.
 const CHUNK_SIZE = 5;
+
+// Cloudflare Worker proxy (set REDDIT_PROXY_URL in Railway env vars)
+const PROXY_URL    = process.env.REDDIT_PROXY_URL?.replace(/\/$/, "") ?? null;
+const PROXY_SECRET = process.env.REDDIT_PROXY_SECRET ?? null;
+
+function proxyHeaders(): Record<string, string> {
+  const h: Record<string, string> = { "User-Agent": USER_AGENT, "Accept": "application/json" };
+  if (PROXY_SECRET) h["X-Worker-Secret"] = PROXY_SECRET;
+  return h;
+}
 
 /**
  * Fetch latest posts from multiple subreddits, chunked into batches of CHUNK_SIZE.
- * Each batch uses Reddit's multi-subreddit syntax: r/sub1+sub2+.../new.json?limit=100
- * so each batch gets ~20 posts per subreddit. Results from all batches are merged.
+ * Uses Cloudflare Worker proxy if REDDIT_PROXY_URL is set, otherwise hits Reddit directly.
  */
 export async function fetchNewPostsMulti(
   subreddits: string[],
@@ -25,21 +33,22 @@ export async function fetchNewPostsMulti(
   const results: RedditPost[] = [];
 
   for (const chunk of chunks) {
-    const url = `https://www.reddit.com/r/${chunk.join("+")}/new.json?limit=${limit}`;
+    const joined = chunk.join("+");
+    const url = PROXY_URL
+      ? `${PROXY_URL}/new?subs=${encodeURIComponent(joined)}&limit=${limit}`
+      : `https://www.reddit.com/r/${joined}/new.json?limit=${limit}`;
+
     try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": USER_AGENT, "Accept": "application/json" },
-      });
+      const res = await fetch(url, { headers: proxyHeaders() });
       if (res.status === 429) throw new Error("Rate limited by Reddit");
-      if (!res.ok) { console.warn(`[Fetcher] Chunk ${chunk.join("+")} HTTP ${res.status}`); continue; }
+      if (!res.ok) { console.warn(`[Fetcher] Chunk ${joined} HTTP ${res.status}`); continue; }
 
       const data = await res.json() as {
         data?: { children?: Array<{ data: RedditPost }> }
       };
       results.push(...(data?.data?.children ?? []).map((c) => c.data));
     } catch (err) {
-      // Log but don't abort — other chunks can still succeed
-      console.warn(`[Fetcher] Chunk ${chunk.join("+")} failed:`, (err as Error).message);
+      console.warn(`[Fetcher] Chunk ${joined} failed:`, (err as Error).message);
     }
   }
 
@@ -48,7 +57,7 @@ export async function fetchNewPostsMulti(
 
 /**
  * Refresh engagement scores for a batch of post IDs across any subreddits.
- * Uses the global api/info.json endpoint — up to 100 IDs per call.
+ * Uses Cloudflare Worker proxy if REDDIT_PROXY_URL is set.
  */
 export async function refreshPostEngagement(
   redditIds: string[]
@@ -56,7 +65,6 @@ export async function refreshPostEngagement(
   const result = new Map<string, { upvotes: number; comments: number; engagement: number }>();
   if (redditIds.length === 0) return result;
 
-  // Chunk into 100s
   const chunks: string[][] = [];
   for (let i = 0; i < redditIds.length; i += 100) {
     chunks.push(redditIds.slice(i, i + 100));
@@ -64,10 +72,12 @@ export async function refreshPostEngagement(
 
   for (const chunk of chunks) {
     const ids = chunk.map((id) => `t3_${id}`).join(",");
-    const url = `https://www.reddit.com/api/info.json?id=${ids}`;
+    const url = PROXY_URL
+      ? `${PROXY_URL}/info?ids=${encodeURIComponent(ids)}`
+      : `https://www.reddit.com/api/info.json?id=${ids}`;
 
     try {
-      const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+      const res = await fetch(url, { headers: proxyHeaders() });
       if (!res.ok) continue;
 
       const data = await res.json() as {
