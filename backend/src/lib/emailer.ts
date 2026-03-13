@@ -53,22 +53,8 @@ export async function sendInviteEmail(opts: {
   const subject = `You've been invited to ReSurge as a ${roleLabel}`;
   const html = buildInviteHtml({ toEmail: opts.toEmail, roleLabel, loginUrl });
 
-  // Try Gmail first, fall back to Resend
-  const gmailUser = process.env.GMAIL_USER;
-  const gmailPass = process.env.GMAIL_APP_PASSWORD;
-  if (gmailUser && gmailPass) {
-    try {
-      await getTransporter().sendMail({ from: `"ReSurge" <${FROM_EMAIL}>`, to: opts.toEmail, subject, html });
-      console.log("[invite email] sent via Gmail to", opts.toEmail);
-      return;
-    } catch (err: any) {
-      console.error("[invite email] Gmail failed, trying Resend:", err.message);
-    }
-  }
-
-  // Resend fallback
   const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) throw new Error("No email provider configured (GMAIL_USER/GMAIL_APP_PASSWORD or RESEND_API_KEY required)");
+  if (!resendKey) throw new Error("RESEND_API_KEY not configured");
   const { Resend } = await import("resend");
   await new Resend(resendKey).emails.send({ from: "ReSurge <onboarding@resend.dev>", to: opts.toEmail, subject, html });
   console.log("[invite email] sent via Resend to", opts.toEmail);
