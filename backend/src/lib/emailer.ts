@@ -53,11 +53,8 @@ export async function sendInviteEmail(opts: {
   const subject = `You've been invited to ReSurge as a ${roleLabel}`;
   const html = buildInviteHtml({ toEmail: opts.toEmail, roleLabel, loginUrl });
 
-  const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) throw new Error("RESEND_API_KEY not configured");
-  const { Resend } = await import("resend");
-  await new Resend(resendKey).emails.send({ from: "ReSurge <onboarding@resend.dev>", to: opts.toEmail, subject, html });
-  console.log("[invite email] sent via Resend to", opts.toEmail);
+  await getTransporter().sendMail({ from: `"ReSurge" <${FROM_EMAIL}>`, to: opts.toEmail, subject, html });
+  console.log("[invite email] sent via Gmail to", opts.toEmail);
 }
 
 
