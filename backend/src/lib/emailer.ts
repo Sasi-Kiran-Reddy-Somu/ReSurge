@@ -1,12 +1,16 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 const HOLDER_APP_URL = process.env.HOLDER_APP_URL ?? "http://localhost:3002";
-const FROM_EMAIL     = process.env.FROM_EMAIL ?? "notifications@yourdomain.com";
+const FROM_EMAIL     = process.env.GMAIL_USER ?? "you@gmail.com";
 
-function getResend() {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error("RESEND_API_KEY not set");
-  return new Resend(key);
+function getTransporter() {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) throw new Error("GMAIL_USER or GMAIL_APP_PASSWORD not set");
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: { user, pass },
+  });
 }
 
 export async function sendStack4Notification(opts: {
@@ -19,11 +23,10 @@ export async function sendStack4Notification(opts: {
   subreddit:  string;
   growth:     number;
 }): Promise<void> {
-  // Deep link: includes token + role so the holder app auto-logs-in and opens the post popup
   const deepLink = `${HOLDER_APP_URL}/?postId=${opts.postId}&token=${encodeURIComponent(opts.token)}&role=holder`;
 
-  await getResend().emails.send({
-    from:    FROM_EMAIL,
+  await getTransporter().sendMail({
+    from:    `"ReSurge" <${FROM_EMAIL}>`,
     to:      opts.toEmail,
     subject: `🔥 Viral post in r/${opts.subreddit} — act now`,
     html: `
