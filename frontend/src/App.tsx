@@ -811,16 +811,22 @@ const holderApi = {
 };
 
 function SubredditGrid({ allSubs, sel, onToggle }: any) {
+  const [q, setQ] = useState("");
+  const visible = q ? allSubs.filter((s: any) => s.name.toLowerCase().includes(q.toLowerCase())) : allSubs;
   return (
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:12}}>
-      {allSubs.map((s: any) => (
-        <div key={s.name} onClick={() => onToggle(s.name)}
-          style={{background:sel.has(s.name)?"#1C1400":C_H.surface,border:`1px solid ${sel.has(s.name)?C_H.accent:C_H.border}`,borderRadius:10,padding:"16px 18px",cursor:"pointer",transition:"all 0.15s"}}>
-          <div style={{fontSize:11,color:C_H.muted,marginBottom:4}}>r/</div>
-          <div style={{fontSize:14,fontWeight:600,color:sel.has(s.name)?C_H.accent:C_H.text}}>{s.name}</div>
-        </div>
-      ))}
-      {allSubs.length === 0 && <div style={{color:C_H.dim,fontSize:13}}>No subreddits tracked yet.</div>}
+    <div>
+      <input value={q} onChange={(e: any) => setQ(e.target.value)} placeholder="Search subreddits…"
+        style={{...inpH, marginBottom:16, padding:"8px 12px", fontSize:12}}/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:12}}>
+        {visible.map((s: any) => (
+          <div key={s.name} onClick={() => onToggle(s.name)}
+            style={{background:sel.has(s.name)?"#1C1400":C_H.surface,border:`1px solid ${sel.has(s.name)?C_H.accent:C_H.border}`,borderRadius:10,padding:"16px 18px",cursor:"pointer",transition:"all 0.15s"}}>
+            <div style={{fontSize:11,color:C_H.muted,marginBottom:4}}>r/</div>
+            <div style={{fontSize:14,fontWeight:600,color:sel.has(s.name)?C_H.accent:C_H.text}}>{s.name}</div>
+          </div>
+        ))}
+        {visible.length === 0 && <div style={{color:C_H.dim,fontSize:13}}>{allSubs.length === 0 ? "No subreddits tracked yet." : "No results."}</div>}
+      </div>
     </div>
   );
 }
