@@ -835,6 +835,7 @@ function AccountSetupH({ onDone }: any) {
   function toggle(name: string) { setSel(p => { const n = new Set(p); n.has(name) ? n.delete(name) : n.add(name); return n; }); }
   async function save() {
     if (!form.emailAddress) { setErr("Email address is required"); return; }
+    if (!form.redditUsername) { setErr("Reddit username is required"); return; }
     setBusy(true); setErr("");
     try { await holderApi.addAccount({...form, subreddits:[...sel]}); onDone(); }
     catch(e: any) { setErr(e.message); }
@@ -851,14 +852,14 @@ function AccountSetupH({ onDone }: any) {
             <input style={inpH} value={form.emailAddress} onChange={(e: any) => setForm(p => ({...p,emailAddress:e.target.value}))} placeholder="email@example.com"/>
           </div>
           <div>
-            <label style={{fontSize:11,color:C_H.muted,display:"block",marginBottom:6}}>Reddit Username (optional)</label>
+            <label style={{fontSize:11,color:C_H.muted,display:"block",marginBottom:6}}>Reddit Username *</label>
             <input style={inpH} value={form.redditUsername} onChange={(e: any) => setForm(p => ({...p,redditUsername:e.target.value}))} placeholder="u/username"/>
           </div>
         </div>
         {err && <div style={{color:C_H.red,fontSize:12,marginBottom:12}}>{err}</div>}
         <div style={{marginTop:"auto"}}>
           <div style={{fontSize:13,color:C_H.sub,marginBottom:10}}>{sel.size} subreddit{sel.size!==1?"s":""} selected</div>
-          <button onClick={save} disabled={busy || !form.emailAddress} style={{...btnH(C_H.accent,"#000"),width:"100%",padding:"13px"}}>
+          <button onClick={save} disabled={busy || !form.emailAddress || !form.redditUsername} style={{...btnH(C_H.accent,"#000"),width:"100%",padding:"13px"}}>
             {busy ? "Saving..." : "Save & Continue →"}
           </button>
           <button onClick={onDone} style={{background:"none",border:"none",color:C_H.dim,cursor:"pointer",fontFamily:"inherit",fontSize:12,marginTop:10,padding:0}}>
@@ -884,6 +885,7 @@ function AddAccountModalH({ onClose, onAdded }: any) {
   function toggle(name: string) { setSel(p => { const n = new Set(p); n.has(name) ? n.delete(name) : n.add(name); return n; }); }
   async function save() {
     if (!form.emailAddress) { setErr("Email address is required"); return; }
+    if (!form.redditUsername) { setErr("Reddit username is required"); return; }
     setBusy(true); setErr("");
     try { await holderApi.addAccount({...form, subreddits:[...sel]}); onAdded(); }
     catch(e: any) { setErr(e.message); }
@@ -901,14 +903,14 @@ function AddAccountModalH({ onClose, onAdded }: any) {
               <input style={inpH} value={form.emailAddress} onChange={(e: any) => setForm(p => ({...p,emailAddress:e.target.value}))} placeholder="email@example.com"/>
             </div>
             <div>
-              <label style={{fontSize:11,color:C_H.muted,display:"block",marginBottom:5}}>Reddit Username (optional)</label>
+              <label style={{fontSize:11,color:C_H.muted,display:"block",marginBottom:5}}>Reddit Username *</label>
               <input style={inpH} value={form.redditUsername} onChange={(e: any) => setForm(p => ({...p,redditUsername:e.target.value}))} placeholder="u/username"/>
             </div>
           </div>
           {err && <div style={{color:C_H.red,fontSize:12,marginBottom:10}}>{err}</div>}
           <div style={{marginTop:"auto"}}>
             <div style={{fontSize:12,color:C_H.sub,marginBottom:8}}>{sel.size} subreddit{sel.size!==1?"s":""} selected</div>
-            <button onClick={save} disabled={busy || !form.emailAddress} style={{...btnH(C_H.accent,"#000"),width:"100%",padding:"11px",marginBottom:8}}>
+            <button onClick={save} disabled={busy || !form.emailAddress || !form.redditUsername} style={{...btnH(C_H.accent,"#000"),width:"100%",padding:"11px",marginBottom:8}}>
               {busy ? "Saving..." : "Add Account →"}
             </button>
             <button onClick={onClose} style={{background:"none",border:"none",color:C_H.dim,cursor:"pointer",fontFamily:"inherit",fontSize:12,padding:0}}>Cancel</button>
