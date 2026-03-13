@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db/client.js";
-import { users, invitedUsers } from "../db/schema.js";
+import { users, invitedUsers, monitorAssignments } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { hashPassword, comparePassword, signToken } from "../lib/auth.js";
 
@@ -125,6 +125,21 @@ authRoutes.post("/google", async (c) => {
   // Remove from pending invites now that they've signed up
   if (!ADMIN_EMAILS.includes(email)) {
     await db.delete(invitedUsers).where(eq(invitedUsers.email, email));
+  }
+
+  // Monitors are also holders — give them the holder role + self-assignment
+  const userRolesNow = user.roles?.length ? user.roles : [user.role];
+  if (userRolesNow.includes("monitor") && !userRolesNow.includes("holder")) {
+    const merged = [...new Set([...userRolesNow, "holder"])];
+    [user] = await db.update(users).set({ roles: merged }).where(eq(users.id, user.id)).returning();
+  }
+  if (userRolesNow.includes("monitor")) {
+    const existing = await db.select().from(monitorAssignments)
+      .where(eq(monitorAssignments.monitorId, user.id)).limit(10);
+    const selfAssigned = existing.some((a) => a.holderId === user.id);
+    if (!selfAssigned) {
+      await db.insert(monitorAssignments).values({ monitorId: user.id, holderId: user.id });
+    }
   }
 
   const token = signToken({ userId: user.id, role: user.role });
