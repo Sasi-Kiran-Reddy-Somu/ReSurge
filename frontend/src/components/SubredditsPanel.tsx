@@ -301,7 +301,7 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
       <div style={{ padding: "22px 32px 18px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontWeight: 700, fontSize: 18, color: C.text }}>⚙️ Manage Subreddits — v2</span>
+            <span style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontWeight: 700, fontSize: 18, color: C.text }}>⚙️ Manage Subreddits</span>
             <span style={{ fontSize: 11, color: C.muted, background: C.surface, border: `1px solid ${C.border}`, padding: "2px 8px", borderRadius: 10 }}>{subs.length} tracked</span>
           </div>
         </div>
