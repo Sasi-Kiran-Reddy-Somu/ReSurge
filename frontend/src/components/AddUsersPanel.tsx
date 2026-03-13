@@ -2,16 +2,23 @@ import React, { useState, useEffect, useRef } from "react";
 
 const C = { bg:"#0D0F16", surface:"#0F1117", border:"#1F2937", text:"#F9FAFB", muted:"#6B7280", dim:"#374151", sub:"#9CA3AF", red:"#EF4444", green:"#22C55E", purple:"#A78BFA", blue:"#3B82F6" };
 
-function req(method: string, path: string, body?: any) {
+async function req(method: string, path: string, body?: any) {
   const token = localStorage.getItem("token");
-  return fetch(`/api${path}`, {
-    method,
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
-  }).then(async r => {
-    if (!r.ok) { const e = await r.json().catch(() => ({ error: r.statusText })); throw new Error(e.error ?? "Request failed"); }
-    return r.json();
-  });
+  let r: Response;
+  try {
+    r = await fetch(`/api${path}`, {
+      method,
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (networkErr: any) {
+    throw new Error("Network error — backend unreachable: " + networkErr.message);
+  }
+  const text = await r.text();
+  let json: any;
+  try { json = JSON.parse(text); } catch { throw new Error(`Server returned non-JSON (${r.status}): ${text.slice(0, 200)}`); }
+  if (!r.ok) throw new Error(json.error ?? `Request failed (${r.status})`);
+  return json;
 }
 
 const ROLE_COLORS: any   = { monitor:C.blue, holder:C.green, main:"#F59E0B" };
@@ -115,6 +122,7 @@ export default function UsersPanel() {
       setTimeout(() => setSuccess(""), 5000);
     } catch (e: any) {
       setErr(e.message);
+      window.alert("Invite failed: " + e.message);
     } finally {
       setBusy(false);
     }
