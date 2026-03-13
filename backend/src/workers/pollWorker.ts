@@ -27,11 +27,11 @@ export function createPollWorker() {
     async () => {
       const now = Date.now();
 
-      // ── Step 1: Load all active subreddits ─────────────────
+      // ── Step 1: Load all active, non-paused subreddits ────
       const activeSubs = await db
         .select({ name: subreddits.name })
         .from(subreddits)
-        .where(eq(subreddits.isActive, true));
+        .where(and(eq(subreddits.isActive, true), eq(subreddits.isPaused, false)));
 
       if (activeSubs.length === 0) return;
 

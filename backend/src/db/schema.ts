@@ -15,6 +15,7 @@ export const subreddits = pgTable("subreddits", {
   id:               uuid("id").primaryKey().defaultRandom(),
   name:             text("name").notNull().unique(),
   isActive:         boolean("is_active").notNull().default(true),
+  isPaused:         boolean("is_paused").notNull().default(false),
   visibleToHolders: boolean("visible_to_holders").notNull().default(true),
   addedAt:          timestamp("added_at").notNull().defaultNow(),
 });

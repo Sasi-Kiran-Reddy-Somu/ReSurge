@@ -148,6 +148,21 @@ subredditRoutes.patch("/:name/visibility", async (c) => {
   return c.json(updated);
 });
 
+// PATCH /api/subreddits/:name/pause
+subredditRoutes.patch("/:name/pause", async (c) => {
+  const name = c.req.param("name").toLowerCase();
+  const body = await c.req.json<{ isPaused: boolean }>();
+
+  const [updated] = await db
+    .update(subreddits)
+    .set({ isPaused: body.isPaused })
+    .where(eq(subreddits.name, name))
+    .returning();
+
+  if (!updated) return c.json({ error: "Not found" }, 404);
+  return c.json(updated);
+});
+
 // DELETE /api/subreddits/:id  (id = UUID)
 // Also accepts name as fallback via ?name= query param
 subredditRoutes.delete("/:id", async (c) => {

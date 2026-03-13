@@ -44,10 +44,11 @@ function ConfirmModal({ title, message, confirmLabel="Confirm", onConfirm, onCan
   );
 }
 
-function SubredditDetail({ sub, onBack, onRemove, onToggleVisibility }: any) {
+function SubredditDetail({ sub, onBack, onRemove, onToggleVisibility, onTogglePause }: any) {
   const [stats, setStats] = useState<any>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [toggling, setToggling] = useState(false);
+  const [pausing, setPausing] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
 
@@ -67,6 +68,13 @@ function SubredditDetail({ sub, onBack, onRemove, onToggleVisibility }: any) {
     } finally { setToggling(false); }
   }
 
+  async function handleTogglePause() {
+    setPausing(true);
+    try {
+      await onTogglePause(sub.name, !sub.isPaused);
+    } finally { setPausing(false); }
+  }
+
   async function handleRemove() {
     setRemoving(true);
     try { await onRemove(sub.name); setConfirmRemove(false); }
@@ -75,6 +83,7 @@ function SubredditDetail({ sub, onBack, onRemove, onToggleVisibility }: any) {
   }
 
   const visible = stats?.visibleToHolders ?? true;
+  const paused = sub.isPaused ?? false;
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -105,6 +114,10 @@ function SubredditDetail({ sub, onBack, onRemove, onToggleVisibility }: any) {
           <button onClick={handleToggleVisibility} disabled={toggling || loadingStats}
             style={{ background: visible ? "#0A1A0A" : "#1F1014", color: visible ? C.green : C.red, border: `1px solid ${visible ? "#14532D" : "#7F1D1D"}`, borderRadius: 7, padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: toggling ? 0.6 : 1 }}>
             {toggling ? "Updating…" : visible ? "👁 Visible to holders" : "🚫 Hidden from holders"}
+          </button>
+          <button onClick={handleTogglePause} disabled={pausing}
+            style={{ background: paused ? "#1A1200" : "#0A0A1A", color: paused ? C.amber : "#818CF8", border: `1px solid ${paused ? "#78350F" : "#3730A3"}`, borderRadius: 7, padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: pausing ? 0.6 : 1 }}>
+            {pausing ? "Updating…" : paused ? "▶ Resume" : "⏸ Put on Hold"}
           </button>
           <button onClick={() => setConfirmRemove(true)}
             style={{ background: "#1F1014", color: C.red, border: `1px solid #7F1D1D`, borderRadius: 7, padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
@@ -142,6 +155,17 @@ function SubredditDetail({ sub, onBack, onRemove, onToggleVisibility }: any) {
                 <button onClick={handleToggleVisibility} disabled={toggling}
                   style={{ background: visible ? C.green : "#374151", border: "none", borderRadius: 20, width: 48, height: 26, cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0, marginLeft: 20, opacity: toggling ? 0.6 : 1 }}>
                   <div style={{ position: "absolute", top: 3, left: visible ? 25 : 3, width: 20, height: 20, background: "#fff", borderRadius: "50%", transition: "left 0.2s" }} />
+                </button>
+              </div>
+              {/* Pause row */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px", borderBottom: `1px solid ${C.border}` }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: paused ? C.amber : "#818CF8", marginBottom: 4 }}>{paused ? "Resume tracking" : "Put on hold"}</div>
+                  <div style={{ fontSize: 12, color: C.muted }}>{paused ? "Resume Reddit polling and alerts for this subreddit." : "Pause all Reddit polling and alerts without removing the subreddit."}</div>
+                </div>
+                <button onClick={handleTogglePause} disabled={pausing}
+                  style={{ background: paused ? "#1A1200" : "#0A0A1A", color: paused ? C.amber : "#818CF8", border: `1px solid ${paused ? "#78350F" : "#3730A3"}`, borderRadius: 7, padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0, marginLeft: 20, opacity: pausing ? 0.6 : 1 }}>
+                  {pausing ? "Updating…" : paused ? "▶ Resume" : "⏸ Put on Hold"}
                 </button>
               </div>
               {/* Remove row */}
@@ -252,6 +276,11 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
     setSubs((p: any[]) => p.map((s: any) => s.name === name ? { ...s, visibleToHolders: visible } : s));
   }
 
+  async function handleTogglePause(name: string, isPaused: boolean) {
+    await req("PATCH", `/subreddits/${name}/pause`, { isPaused });
+    setSubs((p: any[]) => p.map((s: any) => s.name === name ? { ...s, isPaused } : s));
+  }
+
   const selSub = selected ? subs.find((s: any) => s.name === selected) ?? null : null;
 
   if (selSub) {
@@ -261,6 +290,7 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
         onBack={() => setSelected(null)}
         onRemove={handleRemove}
         onToggleVisibility={handleToggleVisibility}
+        onTogglePause={handleTogglePause}
       />
     );
   }
@@ -327,6 +357,9 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
                         <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>{sub.name}</span>
                         {!sub.visibleToHolders && (
                           <span style={{ fontSize: 9, background: "#1F1014", color: C.red, border: `1px solid #7F1D1D`, padding: "2px 6px", borderRadius: 8, fontWeight: 600, letterSpacing: "0.04em" }}>HIDDEN</span>
+                        )}
+                        {sub.isPaused && (
+                          <span style={{ fontSize: 9, background: "#1A1200", color: C.amber, border: `1px solid #78350F`, padding: "2px 6px", borderRadius: 8, fontWeight: 600, letterSpacing: "0.04em" }}>PAUSED</span>
                         )}
                       </div>
                     </td>
