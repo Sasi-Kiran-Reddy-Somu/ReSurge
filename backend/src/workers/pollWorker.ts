@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
 import { bullConnection } from "../lib/redis.js";
-import { fetchNewPostsMulti, refreshPostEngagement } from "../lib/redditFetcher.js";
+import { fetchNewPostsRSS, refreshPostEngagement } from "../lib/redditFetcher.js";
 import { runStackTransitions } from "../lib/stackEngine.js";
 import { db } from "../db/client.js";
 import { posts, thresholds, subreddits, users, holderAccounts, notifications } from "../db/schema.js";
@@ -56,7 +56,7 @@ export function createPollWorker() {
       // ── Step 2: Fetch all new posts in ONE Reddit call ─────
       let fetchedPosts;
       try {
-        fetchedPosts = await fetchNewPostsMulti(subNames, 100);
+        fetchedPosts = await fetchNewPostsRSS(subNames);
       } catch (err) {
         console.error("[Worker] Fetch failed:", (err as Error).message);
         throw err;
