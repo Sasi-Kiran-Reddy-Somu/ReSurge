@@ -62,9 +62,13 @@ export async function runStackTransitions(
 
     } else if (post.stack === 2) {
       if (ageInStackMin >= thresh.s2EvalEnd) {
-        // Eval window closed — compare snapshot (at s2EvalStart) to current engagement
-        const baseline = post.engAtEvalStart ?? post.engAtStackEntry;
-        const growth   = calcGrowthPct(baseline, post.engagement);
+        // Eval window closed — compare snapshot to current engagement.
+        // Use the higher of engAtEvalStart vs engAtStackEntry to prevent
+        // vote-fuzzing from artificially inflating growth numbers.
+        const evalSnap  = post.engAtEvalStart ?? post.engAtStackEntry ?? 0;
+        const entrySnap = post.engAtStackEntry ?? 0;
+        const baseline  = Math.max(evalSnap, entrySnap) || 1;
+        const growth    = calcGrowthPct(baseline, post.engagement);
 
         if (growth >= thresh.s2GrowthPct) {
           // ✅ Advance to Stack 3 — ALERT!
