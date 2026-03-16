@@ -2,7 +2,7 @@ import { Resend } from "resend";
 
 const HOLDER_APP_URL  = process.env.HOLDER_APP_URL  ?? "http://localhost:3002";
 const MONITOR_APP_URL = process.env.MONITOR_APP_URL ?? "http://localhost:3003";
-const FROM_EMAIL      = process.env.RESEND_FROM_EMAIL ?? "noreply@resurgecubehqai.vercel.app";
+const FROM_EMAIL      = process.env.FROM_EMAIL ?? process.env.RESEND_FROM_EMAIL ?? "noreply@resurgecubehqai.vercel.app";
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
