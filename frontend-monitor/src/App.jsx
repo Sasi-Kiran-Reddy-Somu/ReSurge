@@ -603,7 +603,7 @@ function Dashboard({user,onLogout}){
       <div style={{width:280,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
         {/* Header */}
         <div style={{padding:"24px 20px 18px",borderBottom:`1px solid ${C.border}`}}>
-          <div style={{fontSize:11,color:C.accent,fontWeight:700,letterSpacing:"0.1em",marginBottom:14}}>👁 MONITOR PORTAL</div>
+          <div style={{fontSize:11,color:C.accent,fontWeight:700,letterSpacing:"0.1em",marginBottom:14}}>MONITOR PORTAL</div>
           <div style={{fontWeight:700,fontSize:15,color:C.text,marginBottom:3}}>{user.name}</div>
           <div style={{fontSize:12,color:C.muted}}>{user.email}</div>
         </div>
