@@ -1,6 +1,14 @@
 import type { RedditPost } from "../types/index.js";
+import { ProxyAgent, setGlobalDispatcher } from "undici";
 
-const USER_AGENT = "ReSurge/1.0 (internal tool)";
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
+
+// Configure IPRoyal residential proxy if env var is set
+const PROXY_URL = process.env.IPROYAL_PROXY_URL ?? null;
+if (PROXY_URL) {
+  setGlobalDispatcher(new ProxyAgent(PROXY_URL));
+  console.log("[Proxy] IPRoyal residential proxy active");
+}
 
 function parseRedditRSS(xml: string, subreddit: string): RedditPost[] {
   const posts: RedditPost[] = [];
@@ -10,50 +18,33 @@ function parseRedditRSS(xml: string, subreddit: string): RedditPost[] {
   while ((match = entryRegex.exec(xml)) !== null) {
     const entry = match[1];
 
-    // Extract link href (alternate)
     const linkMatch = entry.match(/<link[^>]+rel="alternate"[^>]+href="([^"]+)"/);
     if (!linkMatch) continue;
     const href = linkMatch[1];
 
-    // Extract Reddit post ID from URL: /comments/ABC123/
     const idMatch = href.match(/\/comments\/([a-z0-9]+)\//i);
     if (!idMatch) continue;
     const id = idMatch[1];
 
-    // Build permalink (path only)
     const permalink = href.replace("https://www.reddit.com", "");
 
-    // Title (may be CDATA wrapped)
     const titleMatch = entry.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
     const title = titleMatch ? titleMatch[1].trim() : "";
 
-    // Author
     const authorMatch = entry.match(/<author>\s*<name>([^<]*)<\/name>/);
     const author = authorMatch ? authorMatch[1].trim() : "";
 
-    // Published timestamp
     const publishedMatch = entry.match(/<published>([^<]+)<\/published>/);
     const created_utc = publishedMatch ? Math.floor(Date.parse(publishedMatch[1]) / 1000) : 0;
 
-    posts.push({
-      id,
-      title,
-      permalink,
-      score: 0,
-      num_comments: 0,
-      created_utc,
-      author,
-      selftext: "",
-      subreddit,
-    });
+    posts.push({ id, title, permalink, score: 0, num_comments: 0, created_utc, author, selftext: "", subreddit });
   }
 
   return posts;
 }
 
 /**
- * Fetch latest posts from subreddits via RSS (one request per subreddit).
- * RSS is significantly less blocked than .json endpoints from datacenter IPs.
+ * Fetch latest posts from subreddits via RSS, routed through IPRoyal proxy if configured.
  */
 export async function fetchNewPostsRSS(subreddits: string[]): Promise<RedditPost[]> {
   if (subreddits.length === 0) return [];
@@ -83,7 +74,7 @@ export async function fetchNewPostsRSS(subreddits: string[]): Promise<RedditPost
 }
 
 /**
- * Refresh engagement scores for a batch of post IDs across any subreddits.
+ * Refresh engagement scores for a batch of post IDs, routed through IPRoyal proxy if configured.
  */
 export async function refreshPostEngagement(
   redditIds: string[]
