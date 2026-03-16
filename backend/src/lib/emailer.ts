@@ -1,25 +1,18 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 const HOLDER_APP_URL  = process.env.HOLDER_APP_URL  ?? "http://localhost:3002";
 const MONITOR_APP_URL = process.env.MONITOR_APP_URL ?? "http://localhost:3003";
-const FROM_EMAIL      = process.env.GMAIL_USER ?? "you@gmail.com";
+const FROM_EMAIL      = process.env.FROM_EMAIL ?? "onboarding@resend.dev";
 
-function getTransporter() {
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
-  if (!user || !pass) throw new Error("GMAIL_USER or GMAIL_APP_PASSWORD not set");
-  return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
-    requireTLS: true,
-    family: 4,
-    auth: { user, pass },
-  } as any);
+function getResend() {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error("RESEND_API_KEY not set");
+  return new Resend(key);
 }
 
 async function sendEmail(to: string, subject: string, html: string) {
-  await getTransporter().sendMail({ from: `"ReSurge" <${FROM_EMAIL}>`, to, subject, html });
+  const { error } = await getResend().emails.send({ from: `ReSurge <${FROM_EMAIL}>`, to, subject, html });
+  if (error) throw new Error(error.message);
 }
 
 function buildInviteHtml(opts: { toEmail: string; roleLabel: string; loginUrl: string }) {
@@ -62,7 +55,7 @@ export async function sendInviteEmail(opts: {
   const html = buildInviteHtml({ toEmail: opts.toEmail, roleLabel, loginUrl });
 
   await sendEmail(opts.toEmail, subject, html);
-  console.log("[invite email] sent via Gmail to", opts.toEmail);
+  console.log("[invite email] sent via Resend to", opts.toEmail);
 }
 
 
