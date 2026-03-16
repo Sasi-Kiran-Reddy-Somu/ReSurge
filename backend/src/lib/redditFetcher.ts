@@ -10,64 +10,42 @@ if (PROXY_URL) {
   console.log("[Proxy] IPRoyal residential proxy active");
 }
 
-function parseRedditRSS(xml: string, subreddit: string): RedditPost[] {
-  const posts: RedditPost[] = [];
-  const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
-  let match: RegExpExecArray | null;
-
-  while ((match = entryRegex.exec(xml)) !== null) {
-    const entry = match[1];
-
-    const linkMatch = entry.match(/<link[^>]+rel="alternate"[^>]+href="([^"]+)"/);
-    if (!linkMatch) continue;
-    const href = linkMatch[1];
-
-    const idMatch = href.match(/\/comments\/([a-z0-9]+)\//i);
-    if (!idMatch) continue;
-    const id = idMatch[1];
-
-    const permalink = href.replace("https://www.reddit.com", "");
-
-    const titleMatch = entry.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
-    const title = titleMatch ? titleMatch[1].trim() : "";
-
-    const authorMatch = entry.match(/<author>\s*<name>([^<]*)<\/name>/);
-    const author = authorMatch ? authorMatch[1].trim() : "";
-
-    const publishedMatch = entry.match(/<published>([^<]+)<\/published>/);
-    const created_utc = publishedMatch ? Math.floor(Date.parse(publishedMatch[1]) / 1000) : 0;
-
-    posts.push({ id, title, permalink, score: 0, num_comments: 0, created_utc, author, selftext: "", subreddit });
-  }
-
-  return posts;
-}
+const CHUNK_SIZE = 5;
 
 /**
- * Fetch latest posts from subreddits via RSS, routed through IPRoyal proxy if configured.
+ * Fetch latest posts from multiple subreddits, chunked into batches of CHUNK_SIZE.
+ * All requests are routed through IPRoyal proxy if IPROYAL_PROXY_URL is set.
  */
-export async function fetchNewPostsRSS(subreddits: string[]): Promise<RedditPost[]> {
+export async function fetchNewPostsMulti(
+  subreddits: string[],
+  limit = 100
+): Promise<RedditPost[]> {
   if (subreddits.length === 0) return [];
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < subreddits.length; i += CHUNK_SIZE) {
+    chunks.push(subreddits.slice(i, i + CHUNK_SIZE));
+  }
 
   const results: RedditPost[] = [];
 
-  for (const sub of subreddits) {
-    const url = `https://www.reddit.com/r/${sub}/new.rss?limit=25`;
+  for (const chunk of chunks) {
+    const joined = chunk.join("+");
+    const url = `https://www.reddit.com/r/${joined}/new.json?limit=${limit}`;
+
     try {
       const res = await fetch(url, {
-        headers: { "User-Agent": USER_AGENT, "Accept": "application/rss+xml, application/xml" },
+        headers: { "User-Agent": USER_AGENT, "Accept": "application/json" },
       });
-      if (!res.ok) {
-        console.warn(`[RSS] r/${sub} HTTP ${res.status}`);
-        continue;
-      }
-      const xml = await res.text();
-      console.log(`[RSS] r/${sub} raw (first 300 chars):`, xml.slice(0, 300));
-      const posts = parseRedditRSS(xml, sub);
-      console.log(`[RSS] Fetched ${posts.length} posts from r/${sub}`);
-      results.push(...posts);
+      if (res.status === 429) throw new Error("Rate limited by Reddit");
+      if (!res.ok) { console.warn(`[Fetcher] Chunk ${joined} HTTP ${res.status}`); continue; }
+
+      const data = await res.json() as {
+        data?: { children?: Array<{ data: RedditPost }> }
+      };
+      results.push(...(data?.data?.children ?? []).map((c) => c.data));
     } catch (err) {
-      console.warn(`[RSS] r/${sub} failed:`, (err as Error).message);
+      console.warn(`[Fetcher] Chunk ${joined} failed:`, (err as Error).message);
     }
   }
 
@@ -75,7 +53,8 @@ export async function fetchNewPostsRSS(subreddits: string[]): Promise<RedditPost
 }
 
 /**
- * Refresh engagement scores for a batch of post IDs, routed through IPRoyal proxy if configured.
+ * Refresh engagement scores for a batch of post IDs.
+ * All requests are routed through IPRoyal proxy if IPROYAL_PROXY_URL is set.
  */
 export async function refreshPostEngagement(
   redditIds: string[]
