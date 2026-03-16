@@ -33,20 +33,27 @@ export async function fetchNewPostsMulti(
     const joined = chunk.join("+");
     const url = `https://www.reddit.com/r/${joined}/new.json?limit=${limit}`;
 
-    try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": USER_AGENT, "Accept": "application/json" },
-      });
-      if (res.status === 429) throw new Error("Rate limited by Reddit");
-      if (!res.ok) { console.warn(`[Fetcher] Chunk ${joined} HTTP ${res.status}`); continue; }
+    let success = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const res = await fetch(url, {
+          headers: { "User-Agent": USER_AGENT, "Accept": "application/json" },
+        });
+        if (res.status === 429) throw new Error("Rate limited by Reddit");
+        if (!res.ok) { console.warn(`[Fetcher] Chunk ${joined} HTTP ${res.status}`); break; }
 
-      const data = await res.json() as {
-        data?: { children?: Array<{ data: RedditPost }> }
-      };
-      results.push(...(data?.data?.children ?? []).map((c) => c.data));
-    } catch (err) {
-      console.warn(`[Fetcher] Chunk ${joined} failed:`, (err as Error).message);
+        const data = await res.json() as {
+          data?: { children?: Array<{ data: RedditPost }> }
+        };
+        results.push(...(data?.data?.children ?? []).map((c) => c.data));
+        success = true;
+        break;
+      } catch (err) {
+        console.warn(`[Fetcher] Chunk ${joined} attempt ${attempt} failed:`, (err as Error).message);
+        if (attempt < 3) await new Promise(r => setTimeout(r, 1000 * attempt));
+      }
     }
+    if (!success) console.warn(`[Fetcher] Chunk ${joined} skipped after 3 attempts`);
   }
 
   return results;
