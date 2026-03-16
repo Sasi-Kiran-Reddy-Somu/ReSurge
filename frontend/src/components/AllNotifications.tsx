@@ -75,9 +75,10 @@ export default function AllNotifications() {
       {/* Fixed header + filters */}
       <div style={{ flexShrink:0, padding:"20px 24px 0" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
-          <span style={{ fontFamily:"'IBM Plex Sans',sans-serif", fontWeight:700, fontSize:15 }}>
-            🔔 All Stack 4 Notifications
-          </span>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ width:26, height:26, background:"#FF4500", borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"#fff", flexShrink:0 }}>r/</div>
+            <span style={{ fontFamily:"'IBM Plex Sans',sans-serif", fontWeight:700, fontSize:15 }}>All Notifications</span>
+          </div>
           <span style={{ fontSize:10, color:"#6B7280", background:"#1F2937", padding:"2px 8px", borderRadius:10 }}>
             {visible.length}{posts.length !== visible.length ? ` / ${posts.length}` : ""} posts
           </span>

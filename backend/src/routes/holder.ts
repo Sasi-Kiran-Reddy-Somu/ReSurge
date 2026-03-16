@@ -106,12 +106,16 @@ holderRoutes.put("/notifications/:id/done", async (c) => {
 holderRoutes.get("/accounts", async (c) => {
   const userId = c.get("userId") as string;
   const rows   = await db.select().from(holderAccounts).where(eq(holderAccounts.holderId, userId));
-  const paused = await getPausedSubredditNames();
-  // Strip paused subreddits from each account's list in the response (don't mutate DB)
-  const filtered = rows.map(acc => ({
-    ...acc,
-    subreddits: (acc.subreddits ?? []).filter(s => !paused.has(s)),
-  }));
+  const globalPaused = await getPausedSubredditNames();
+  // Parse ~prefix for per-account holds; strip globally paused subreddits
+  const filtered = rows.map(acc => {
+    const raw = acc.subreddits ?? [];
+    return {
+      ...acc,
+      subreddits:       raw.filter(s => !s.startsWith("~") && !globalPaused.has(s)),
+      pausedSubreddits: raw.filter(s => s.startsWith("~")).map(s => s.slice(1)),
+    };
+  });
   return c.json(filtered);
 });
 
@@ -128,12 +132,14 @@ holderRoutes.post("/accounts", async (c) => {
 holderRoutes.put("/accounts/:id", async (c) => {
   const userId    = c.get("userId") as string;
   const accountId = c.req.param("id");
-  const { subreddits } = await c.req.json();
+  const { subreddits: active, pausedSubreddits: paused } = await c.req.json();
   const [row] = await db.select().from(holderAccounts)
     .where(and(eq(holderAccounts.id, accountId), eq(holderAccounts.holderId, userId))).limit(1);
   if (!row) return c.json({ error: "Not found" }, 404);
+  // Store paused subreddits with ~ prefix in the same column
+  const combined = [...(active ?? []), ...(paused ?? []).map((s: string) => `~${s}`)];
   const [updated] = await db.update(holderAccounts)
-    .set({ subreddits: subreddits ?? [] })
+    .set({ subreddits: combined })
     .where(eq(holderAccounts.id, accountId))
     .returning();
   return c.json(updated);

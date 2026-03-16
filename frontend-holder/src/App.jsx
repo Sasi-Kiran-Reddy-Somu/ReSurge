@@ -50,7 +50,7 @@ function AuthScreen({onAuth}){
       <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:60,borderRight:`1px solid ${C.border}`}}>
         <div style={{width:72,height:72,background:"#FF4500",borderRadius:18,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,fontWeight:800,color:"#fff",marginBottom:32}}>r/</div>
         <div style={{fontSize:48,fontWeight:800,color:C.text,letterSpacing:"-0.03em",marginBottom:14}}>ReSurge</div>
-        <div style={{fontSize:16,color:C.muted,maxWidth:340,textAlign:"center",lineHeight:1.7}}>Post viral Reddit content — get notified when posts start trending.</div>
+        <div style={{fontSize:16,color:C.muted,maxWidth:340,textAlign:"center",lineHeight:1.7}}>Track viral Reddit posts before they blow up — get notified instantly and generate AI-powered comments to engage at the perfect moment.</div>
       </div>
       <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:60}}>
         <div style={{width:320}}>
@@ -200,12 +200,15 @@ function PostPopup({notif,cachedComment,onCommentCached,onClose,onAction}){
         {!comment&&<button onClick={generate} disabled={loading} style={{...btn(loading?"#78350F":C.accent,loading?"#FCD34D":"#000"),width:"100%",padding:"14px",marginBottom:16,fontSize:14}}>{loading?"Generating...":"✨ Generate Comment"}</button>}
         {err&&<div style={{color:C.red,fontSize:13,marginBottom:12}}>{err}</div>}
         {comment&&<div style={{background:"#080B12",border:`1px solid #1E3A5F`,borderRadius:12,padding:22,marginBottom:20}}><p style={{margin:"0 0 16px",fontSize:14,color:"#D1D5DB",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{comment}</p><div style={{display:"flex",gap:10}}><button onClick={()=>{setComment(null);generate();}} style={btn("#1F2937",C.sub)}>↺ Regenerate</button><button onClick={copy} style={btn(copied?"#064E3B":"#1F2937",copied?C.green:C.sub)}>{copied?"✓ Copied!":"Copy Text"}</button></div></div>}
+        {comment&&!showPaste&&<div style={{background:"#0A1A10",border:`1px solid #065F46`,borderRadius:8,padding:"11px 14px",marginBottom:12,fontSize:12,color:"#6EE7B7",lineHeight:1.6}}>
+          <strong style={{color:C.green}}>Next steps:</strong> Copy the comment above → Open the post → Paste &amp; submit on Reddit → Come back and click <strong style={{color:C.green}}>"✓ I Posted — Save Link"</strong> below to log your comment link.
+        </div>}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:showPaste?16:0}}>
           <button onClick={()=>window.open(notif.postUrl,"_blank")} style={btn("#1A1D2E",C.sub,{border:`1px solid ${C.border}`})}>Open Post ↗</button>
           <button onClick={async()=>{await api.markDone(notif.id);onAction();}} style={btn("#1F2937",C.muted)}>Done</button>
-          <button onClick={()=>setShowPaste(true)} style={btn("#064E3B",C.green)}>✓ Posted</button>
+          <button onClick={()=>setShowPaste(true)} style={btn("#064E3B",C.green)}>✓ I Posted — Save Link</button>
         </div>
-        {showPaste&&<div style={{background:"#060D0A",border:`1px solid #065F46`,borderRadius:10,padding:20,marginTop:12}}><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:8}}>Paste your Reddit comment link:</label><input style={{...inp,marginBottom:12}} placeholder="https://reddit.com/r/.../comment/..." value={link} onChange={e=>setLink(e.target.value)}/><button onClick={async()=>{if(!link.trim())return;await api.markPosted(notif.id,link.trim());onAction();}} style={{...btn(C.green,"#000"),width:"100%"}}>Submit & Save</button></div>}
+        {showPaste&&<div style={{background:"#060D0A",border:`1px solid #065F46`,borderRadius:10,padding:20,marginTop:12}}><label style={{fontSize:12,color:C.green,display:"block",marginBottom:6,fontWeight:700}}>Paste your Reddit comment link to save it:</label><div style={{fontSize:11,color:C.muted,marginBottom:10}}>Go to your comment on Reddit → click "Share" → copy the link → paste it here.</div><input style={{...inp,marginBottom:12}} placeholder="https://reddit.com/r/.../comments/.../comment/..." value={link} onChange={e=>setLink(e.target.value)}/><button onClick={async()=>{if(!link.trim())return;await api.markPosted(notif.id,link.trim());onAction();}} style={{...btn(C.green,"#000"),width:"100%"}}>Save &amp; Mark as Posted</button></div>}
       </div>
     </div>
   );
@@ -277,10 +280,89 @@ function ManageAccountsModal({accounts,onClose,onDeleted,onAdd,delBusy}){
   );
 }
 
+function ManageSubredditsPanel({account,onUpdated}){
+  const [allSubs,setAllSubs]=useState([]);
+  const [busy,setBusy]=useState(false);
+  useEffect(()=>{api.getSubreddits().then(setAllSubs).catch(()=>{});},[]);
+  if(!account)return null;
+  const active=account.subreddits??[];
+  const paused=account.pausedSubreddits??[];
+  const assignedSet=new Set([...active,...paused]);
+  const available=allSubs.filter(s=>!assignedSet.has(s.name));
+  async function update(newActive,newPaused){
+    setBusy(true);
+    try{await api.updateAccount(account.id,{subreddits:newActive,pausedSubreddits:newPaused});onUpdated();}
+    catch(e){alert(e.message);}finally{setBusy(false);}
+  }
+  const rowStyle={background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 16px",display:"flex",alignItems:"center",gap:12};
+  return(
+    <div style={{flex:1,overflowY:"auto",padding:"28px 32px"}}>
+      <div style={{marginBottom:32}}>
+        <div style={{fontSize:11,color:C.dim,fontWeight:700,letterSpacing:"0.08em",marginBottom:14}}>ACTIVE ({active.length})</div>
+        {active.length===0
+          ?<div style={{fontSize:13,color:C.dim,padding:"14px 0"}}>No active subreddits. Add one below.</div>
+          :<div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {active.map(name=>(
+              <div key={name} style={{...rowStyle,borderLeft:`3px solid ${C.green}`}}>
+                <span style={{fontSize:14,color:C.text,flex:1,fontWeight:500}}>r/{name}</span>
+                <button onClick={()=>update(active.filter(s=>s!==name),[...paused,name])} disabled={busy}
+                  style={{background:"none",border:`1px solid ${C.accent}50`,color:C.accent,cursor:"pointer",fontFamily:"inherit",fontSize:11,padding:"5px 12px",borderRadius:5,fontWeight:600,opacity:busy?0.5:1}}>
+                  Hold
+                </button>
+                <button onClick={()=>update(active.filter(s=>s!==name),paused.filter(s=>s!==name))} disabled={busy}
+                  style={{background:"none",border:"1px solid #7F1D1D",color:C.red,cursor:"pointer",fontFamily:"inherit",fontSize:11,padding:"5px 12px",borderRadius:5,fontWeight:600,opacity:busy?0.5:1}}>
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        }
+      </div>
+      {paused.length>0&&(
+        <div style={{marginBottom:32}}>
+          <div style={{fontSize:11,color:C.dim,fontWeight:700,letterSpacing:"0.08em",marginBottom:14}}>ON HOLD ({paused.length})</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {paused.map(name=>(
+              <div key={name} style={{...rowStyle,borderLeft:`3px solid ${C.accent}`,opacity:0.8}}>
+                <span style={{fontSize:14,color:C.sub,flex:1,fontWeight:500}}>r/{name}</span>
+                <span style={{fontSize:10,color:C.accent,background:C.accent+"18",padding:"2px 9px",borderRadius:10,fontWeight:700,flexShrink:0}}>ON HOLD</span>
+                <button onClick={()=>update([...active,name],paused.filter(s=>s!==name))} disabled={busy}
+                  style={{background:"none",border:`1px solid ${C.green}50`,color:C.green,cursor:"pointer",fontFamily:"inherit",fontSize:11,padding:"5px 12px",borderRadius:5,fontWeight:600,opacity:busy?0.5:1}}>
+                  Resume
+                </button>
+                <button onClick={()=>update(active,paused.filter(s=>s!==name))} disabled={busy}
+                  style={{background:"none",border:"1px solid #7F1D1D",color:C.red,cursor:"pointer",fontFamily:"inherit",fontSize:11,padding:"5px 12px",borderRadius:5,fontWeight:600,opacity:busy?0.5:1}}>
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {available.length>0&&(
+        <div>
+          <div style={{fontSize:11,color:C.dim,fontWeight:700,letterSpacing:"0.08em",marginBottom:14}}>ADD SUBREDDIT</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {available.map(s=>(
+              <button key={s.name} onClick={()=>update([...active,s.name],paused)} disabled={busy}
+                style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 16px",color:C.sub,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:500,display:"flex",alignItems:"center",gap:6,opacity:busy?0.5:1}}
+                onMouseEnter={e=>!busy&&(e.currentTarget.style.borderColor=C.accent)}
+                onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+                <span style={{color:C.dim,fontSize:11}}>r/</span><span>{s.name}</span><span style={{color:C.accent,fontSize:14}}>+</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Dashboard({user,onLogout}){
   const [notifs,setNotifs]=useState([]);
   const [accounts,setAccounts]=useState([]);
   const [openAccId,setOpenAccId]=useState(null);
+  const [mainTab,setMainTab]=useState("notifications");
   const [tab,setTab]=useState("all");
   const [search,setSearch]=useState("");
   const [timeFilter,setTimeFilter]=useState("all");
@@ -377,57 +459,26 @@ function Dashboard({user,onLogout}){
           </div>
         </div>
 
-        {/* Accounts accordion */}
+        {/* Accounts list — clean, no accordion */}
         <div style={{flex:1,overflowY:"auto"}}>
           {accounts.length===0
             ? <div style={{padding:"10px 20px",fontSize:12,color:C.dim}}>No accounts yet. Click + Add to get started.</div>
             : accounts.map(acc=>{
-              const isOpen=openAccId===acc.id;
-              const accNotifs=notifs.filter(n=>n.accountId===acc.id);
-              const accPosted=accNotifs.filter(n=>n.status==="posted").length;
+              const isActive=openAccId===acc.id;
               return(
-                <div key={acc.id}>
-                  {/* Account header row */}
-                  <div onClick={()=>setOpenAccId(isOpen?null:acc.id)}
-                    style={{display:"flex",alignItems:"center",background:isOpen?"#111827":"none",borderLeft:isOpen?`3px solid ${C.accent}`:"3px solid transparent",transition:"all 0.1s",cursor:"pointer"}}
-                    onMouseEnter={e=>{if(!isOpen)e.currentTarget.style.background="#0F1117";}}
-                    onMouseLeave={e=>{if(!isOpen)e.currentTarget.style.background="none";}}>
-                    <div style={{flex:1,padding:"10px 20px",minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,color:isOpen?C.accent:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                        {acc.redditUsername?`u/${acc.redditUsername.replace(/^u\//,"")}`:acc.emailAddress}
-                      </div>
-                      {acc.redditUsername&&<div style={{fontSize:11,color:C.dim,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acc.emailAddress}</div>}
+                <div key={acc.id} onClick={()=>{setOpenAccId(acc.id);setMainTab("notifications");}}
+                  style={{display:"flex",alignItems:"center",background:isActive?"#111827":"none",borderLeft:isActive?`3px solid ${C.accent}`:"3px solid transparent",transition:"all 0.1s",cursor:"pointer",padding:"11px 20px"}}
+                  onMouseEnter={e=>{if(!isActive)e.currentTarget.style.background="#0F1117";}}
+                  onMouseLeave={e=>{if(!isActive)e.currentTarget.style.background="none";}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color:isActive?C.accent:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {acc.redditUsername?`u/${acc.redditUsername.replace(/^u\//,"")}`:acc.emailAddress}
                     </div>
-                    <span style={{color:C.dim,fontSize:11,paddingRight:14}}>{isOpen?"▲":"▼"}</span>
+                    {acc.redditUsername&&<div style={{fontSize:11,color:C.dim,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acc.emailAddress}</div>}
+                    <div style={{fontSize:10,color:isActive?C.accent+"80":C.dim,marginTop:2}}>
+                      {(acc.subreddits??[]).length} active · {(acc.pausedSubreddits??[]).length} on hold
+                    </div>
                   </div>
-
-                  {/* Expanded: stats + subreddits + manage */}
-                  {isOpen&&(
-                    <div style={{background:"#0A0D14",borderBottom:`1px solid ${C.border}20`}}>
-                      <div style={{display:"flex",gap:0,padding:"10px 20px 0"}}>
-                        {[{l:"Notified",v:accNotifs.length,c:C.sub},{l:"Posted",v:accPosted,c:C.green}].map(s=>(
-                          <div key={s.l} style={{flex:1}}>
-                            <div style={{fontSize:16,fontWeight:700,color:s.c}}>{s.v}</div>
-                            <div style={{fontSize:10,color:C.dim}}>{s.l}</div>
-                          </div>
-                        ))}
-                      </div>
-                      {acc.subreddits&&acc.subreddits.length>0&&(
-                        <div style={{padding:"10px 20px 8px"}}>
-                          <div style={{fontSize:10,color:C.dim,letterSpacing:"0.06em",marginBottom:7}}>SUBREDDITS</div>
-                          <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                            {acc.subreddits.map(s=><span key={s} style={{background:C.surface,border:`1px solid ${C.border}`,color:C.sub,padding:"2px 8px",borderRadius:10,fontSize:10}}>r/{s}</span>)}
-                          </div>
-                        </div>
-                      )}
-                      <div style={{padding:"6px 20px 12px"}}>
-                        <button onClick={e=>{e.stopPropagation();setShowManageAcc(true);}}
-                          style={{background:"none",border:`1px solid ${C.border}`,color:C.sub,cursor:"pointer",fontFamily:"inherit",fontSize:10,padding:"4px 10px",borderRadius:5,fontWeight:600}}>
-                          Manage Accounts
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
             })
@@ -440,53 +491,52 @@ function Dashboard({user,onLogout}){
       </div>
 
       {/* Main */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{padding:"22px 32px 14px",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
-          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:14}}>
-            <div>
-              <div style={{fontSize:20,fontWeight:800,color:C.text}}>
-                {openAcc
-                  ? (openAcc.redditUsername ? `u/${openAcc.redditUsername.replace(/^u\//,"")}` : openAcc.emailAddress)
-                  : "All Notifications"}
-              </div>
-              {openAcc&&openAcc.redditUsername&&(
-                <div style={{fontSize:12,color:C.muted,marginTop:1}}>{openAcc.emailAddress}</div>
-              )}
-              <div style={{fontSize:12,color:C.muted,marginTop:3}}>
-                {openAcc
-                  ? "Click any post to open, generate a comment and mark as posted"
-                  : "Click any post to open, generate a comment and mark as posted"}
-              </div>
+      {openAcc
+        ? <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            {/* Tab bar */}
+            <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex",gap:0,flexShrink:0,padding:"0 32px"}}>
+              {[["notifications","Notifications"],["subreddits","Manage Subreddits"]].map(([key,label])=>{
+                const a=mainTab===key;
+                return(<button key={key} onClick={()=>setMainTab(key)} style={{background:"none",border:"none",borderBottom:a?`2px solid ${C.accent}`:"2px solid transparent",color:a?C.accent:C.dim,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:a?700:500,padding:"14px 18px",marginBottom:-1,transition:"color 0.12s"}}>{label}</button>);
+              })}
             </div>
-            <div style={{display:"flex",gap:8,flexShrink:0}}>
-              {["all","viewed","posted"].map(t=><button key={t} onClick={()=>setTab(t)} style={{background:tab===t?"#1C1400":"#161B26",color:tab===t?C.accent:C.sub,border:tab===t?`1px solid ${C.accent}40`:`1px solid ${C.border}`,borderRadius:7,padding:"8px 18px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:tab===t?700:500}}>{t} <span style={{opacity:0.8}}>({counts[t]??0})</span></button>)}
-            </div>
+            {mainTab==="notifications"
+              ? <div style={{display:"flex",flexDirection:"column",overflow:"hidden",flex:1}}>
+                  <div style={{padding:"16px 32px 12px",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                      <div>
+                        <div style={{fontSize:18,fontWeight:800,color:C.text}}>{openAcc.redditUsername?`u/${openAcc.redditUsername.replace(/^u\//,"")}`:openAcc.emailAddress}</div>
+                        {openAcc.redditUsername&&<div style={{fontSize:12,color:C.muted,marginTop:1}}>{openAcc.emailAddress}</div>}
+                        <div style={{fontSize:12,color:C.muted,marginTop:2}}>Click any post to open, generate a comment and mark as posted</div>
+                      </div>
+                      <div style={{display:"flex",gap:8,flexShrink:0}}>
+                        {["all","viewed","posted"].map(t=><button key={t} onClick={()=>setTab(t)} style={{background:tab===t?"#1C1400":"#161B26",color:tab===t?C.accent:C.sub,border:tab===t?`1px solid ${C.accent}40`:`1px solid ${C.border}`,borderRadius:7,padding:"8px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:tab===t?700:500}}>{t} ({counts[t]??0})</button>)}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                      <input style={{...inp,flex:1,minWidth:160,padding:"8px 12px",fontSize:12}} placeholder="Search by post title or subreddit…" value={search} onChange={e=>setSearch(e.target.value)}/>
+                      <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
+                        {[{k:"all",l:"All time"},{k:"today",l:"Today"},{k:"week",l:"7d"},{k:"month",l:"30d"},{k:"custom",l:"Custom"}].map(({k,l})=>(
+                          <button key={k} onClick={()=>setTimeFilter(k)} style={{background:timeFilter===k?"#1C1400":"#161B26",color:timeFilter===k?C.accent:C.sub,border:timeFilter===k?`1px solid ${C.accent}40`:`1px solid ${C.border}`,borderRadius:7,padding:"8px 10px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:timeFilter===k?700:500,whiteSpace:"nowrap"}}>{l}</button>
+                        ))}
+                        {timeFilter==="custom"&&(
+                          <><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} style={{...inp,padding:"7px 10px",fontSize:11,colorScheme:"dark"}}/><span style={{fontSize:11,color:C.dim}}>–</span><input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} style={{...inp,padding:"7px 10px",fontSize:11,colorScheme:"dark"}}/></>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{flex:1,overflowY:"auto",padding:"28px 32px"}}>
+                    <NotifList notifs={filtered} onOpen={id=>api.getNotification(id).then(setPopup).catch(()=>{})}/>
+                  </div>
+                </div>
+              : <ManageSubredditsPanel account={openAcc} onUpdated={loadAccounts}/>
+            }
           </div>
-          <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-            <input
-              style={{...inp,flex:1,minWidth:160,padding:"8px 12px",fontSize:12}}
-              placeholder="Search by post title or subreddit…"
-              value={search}
-              onChange={e=>setSearch(e.target.value)}
-            />
-            <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap",alignItems:"center"}}>
-              {[{k:"all",l:"All time"},{k:"today",l:"Today"},{k:"week",l:"7d"},{k:"month",l:"30d"},{k:"custom",l:"Custom"}].map(({k,l})=>(
-                <button key={k} onClick={()=>setTimeFilter(k)} style={{background:timeFilter===k?"#1C1400":"#161B26",color:timeFilter===k?C.accent:C.sub,border:timeFilter===k?`1px solid ${C.accent}40`:`1px solid ${C.border}`,borderRadius:7,padding:"8px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:timeFilter===k?700:500,whiteSpace:"nowrap"}}>{l}</button>
-              ))}
-              {timeFilter==="custom"&&(
-                <>
-                  <input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} style={{...inp,padding:"7px 10px",fontSize:11,colorScheme:"dark"}}/>
-                  <span style={{fontSize:11,color:C.dim}}>–</span>
-                  <input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} style={{...inp,padding:"7px 10px",fontSize:11,colorScheme:"dark"}}/>
-                </>
-              )}
-            </div>
+        : <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:C.dim}}>
+            <div style={{fontSize:32}}>👤</div>
+            <div style={{fontSize:14}}>Select an account from the sidebar</div>
           </div>
-        </div>
-        <div style={{flex:1,overflowY:"auto",padding:"28px 32px"}}>
-          <NotifList notifs={filtered} onOpen={id=>api.getNotification(id).then(setPopup).catch(()=>{})}/>
-        </div>
-      </div>
+      }
     </div>
   );
 }

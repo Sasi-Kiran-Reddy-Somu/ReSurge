@@ -380,12 +380,15 @@ function PostPopup({notif,onClose,onAction}){
         {!comment&&<button onClick={generate} disabled={loading} style={{...btn(loading?"#1E3A5F":C.accent,"#fff"),width:"100%",padding:"14px",marginBottom:16,fontSize:14}}>{loading?"Generating...":"✨ Generate Comment"}</button>}
         {err&&<div style={{color:C.red,fontSize:13,marginBottom:12}}>{err}</div>}
         {comment&&<div style={{background:"#080B12",border:`1px solid #1E3A5F`,borderRadius:12,padding:22,marginBottom:20}}><p style={{margin:"0 0 16px",fontSize:14,color:"#D1D5DB",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{comment}</p><div style={{display:"flex",gap:10}}><button onClick={()=>{setComment(null);generate();}} style={btn("#1F2937",C.sub)}>↺ Regenerate</button><button onClick={copy} style={btn(copied?"#064E3B":"#1F2937",copied?C.green:C.sub)}>{copied?"✓ Copied!":"Copy Text"}</button></div></div>}
+        {comment&&!showPaste&&<div style={{background:"#0A1A10",border:`1px solid #065F46`,borderRadius:8,padding:"11px 14px",marginBottom:12,fontSize:12,color:"#6EE7B7",lineHeight:1.6}}>
+          <strong style={{color:C.green}}>Next steps:</strong> Copy the comment above → Open the post → Paste &amp; submit on Reddit → Come back and click <strong style={{color:C.green}}>"✓ I Posted — Save Link"</strong> below to log your comment link.
+        </div>}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:showPaste?16:0}}>
           <button onClick={()=>window.open(notif.postUrl,"_blank")} style={btn("#1A1D2E",C.sub,{border:`1px solid ${C.border}`})}>Open Post ↗</button>
           <button onClick={async()=>{await req("PUT",`/holder/notifications/${notif.id}/done`);onAction();}} style={btn("#1F2937",C.muted)}>Done</button>
-          <button onClick={()=>setShowPaste(true)} style={btn("#064E3B",C.green)}>✓ Posted</button>
+          <button onClick={()=>setShowPaste(true)} style={btn("#064E3B",C.green)}>✓ I Posted — Save Link</button>
         </div>
-        {showPaste&&<div style={{background:"#060D0A",border:`1px solid #065F46`,borderRadius:10,padding:20,marginTop:12}}><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:8}}>Paste your Reddit comment link:</label><input style={{...inp,marginBottom:12}} placeholder="https://reddit.com/r/.../comment/..." value={link} onChange={e=>setLink(e.target.value)}/><button onClick={async()=>{if(!link.trim())return;await req("PUT",`/holder/notifications/${notif.id}/posted`,{postedLink:link.trim()});onAction();}} style={{...btn(C.green,"#fff"),width:"100%"}}>Submit & Save</button></div>}
+        {showPaste&&<div style={{background:"#060D0A",border:`1px solid #065F46`,borderRadius:10,padding:20,marginTop:12}}><label style={{fontSize:12,color:C.green,display:"block",marginBottom:6,fontWeight:700}}>Paste your Reddit comment link to save it:</label><div style={{fontSize:11,color:C.muted,marginBottom:10}}>Go to your comment on Reddit → click "Share" → copy the link → paste it here.</div><input style={{...inp,marginBottom:12}} placeholder="https://reddit.com/r/.../comments/.../comment/..." value={link} onChange={e=>setLink(e.target.value)}/><button onClick={async()=>{if(!link.trim())return;await req("PUT",`/holder/notifications/${notif.id}/posted`,{postedLink:link.trim()});onAction();}} style={{...btn(C.green,"#fff"),width:"100%"}}>Save &amp; Mark as Posted</button></div>}
       </div>
     </div>
   );
@@ -446,9 +449,93 @@ function MyNotifications({accounts,openAccId,onSetAccId}){
   );
 }
 
+// ── Manage Subreddits Panel ────────────────────────────────────────────────────
+function ManageSubredditsPanel({account,onUpdated}){
+  const [allSubs,setAllSubs]=useState([]);
+  const [busy,setBusy]=useState(false);
+  useEffect(()=>{req("GET","/holder/subreddits").then(setAllSubs).catch(()=>{});},[]);
+  if(!account)return null;
+  const active=account.subreddits??[];
+  const paused=account.pausedSubreddits??[];
+  const assignedSet=new Set([...active,...paused]);
+  const available=allSubs.filter(s=>!assignedSet.has(s.name));
+
+  async function update(newActive,newPaused){
+    setBusy(true);
+    try{await req("PUT",`/holder/accounts/${account.id}`,{subreddits:newActive,pausedSubreddits:newPaused});onUpdated();}
+    catch(e){alert(e.message);}finally{setBusy(false);}
+  }
+
+  const rowStyle={background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"12px 16px",display:"flex",alignItems:"center",gap:12};
+  return(
+    <div style={{flex:1,overflowY:"auto",padding:"28px 32px"}}>
+      <div style={{marginBottom:32}}>
+        <div style={{fontSize:11,color:C.dim,fontWeight:700,letterSpacing:"0.08em",marginBottom:14}}>ACTIVE ({active.length})</div>
+        {active.length===0
+          ?<div style={{fontSize:13,color:C.dim,padding:"14px 0"}}>No active subreddits. Add one below.</div>
+          :<div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {active.map(name=>(
+              <div key={name} style={{...rowStyle,borderLeft:`3px solid ${C.green}`}}>
+                <span style={{fontSize:14,color:C.text,flex:1,fontWeight:500}}>r/{name}</span>
+                <button onClick={()=>update(active.filter(s=>s!==name),[...paused,name])} disabled={busy}
+                  style={{background:"none",border:`1px solid ${C.amber}50`,color:C.amber,cursor:"pointer",fontFamily:"inherit",fontSize:11,padding:"5px 12px",borderRadius:5,fontWeight:600,opacity:busy?0.5:1}}>
+                  Hold
+                </button>
+                <button onClick={()=>update(active.filter(s=>s!==name),paused.filter(s=>s!==name))} disabled={busy}
+                  style={{background:"none",border:"1px solid #7F1D1D",color:C.red,cursor:"pointer",fontFamily:"inherit",fontSize:11,padding:"5px 12px",borderRadius:5,fontWeight:600,opacity:busy?0.5:1}}>
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        }
+      </div>
+
+      {paused.length>0&&(
+        <div style={{marginBottom:32}}>
+          <div style={{fontSize:11,color:C.dim,fontWeight:700,letterSpacing:"0.08em",marginBottom:14}}>ON HOLD ({paused.length})</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {paused.map(name=>(
+              <div key={name} style={{...rowStyle,borderLeft:`3px solid ${C.amber}`,opacity:0.8}}>
+                <span style={{fontSize:14,color:C.sub,flex:1,fontWeight:500}}>r/{name}</span>
+                <span style={{fontSize:10,color:C.amber,background:C.amber+"18",padding:"2px 9px",borderRadius:10,fontWeight:700,flexShrink:0}}>ON HOLD</span>
+                <button onClick={()=>update([...active,name],paused.filter(s=>s!==name))} disabled={busy}
+                  style={{background:"none",border:`1px solid ${C.green}50`,color:C.green,cursor:"pointer",fontFamily:"inherit",fontSize:11,padding:"5px 12px",borderRadius:5,fontWeight:600,opacity:busy?0.5:1}}>
+                  Resume
+                </button>
+                <button onClick={()=>update(active,paused.filter(s=>s!==name))} disabled={busy}
+                  style={{background:"none",border:"1px solid #7F1D1D",color:C.red,cursor:"pointer",fontFamily:"inherit",fontSize:11,padding:"5px 12px",borderRadius:5,fontWeight:600,opacity:busy?0.5:1}}>
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {available.length>0&&(
+        <div>
+          <div style={{fontSize:11,color:C.dim,fontWeight:700,letterSpacing:"0.08em",marginBottom:14}}>ADD SUBREDDIT</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {available.map(s=>(
+              <button key={s.name} onClick={()=>update([...active,s.name],paused)} disabled={busy}
+                style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 16px",color:C.sub,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:500,display:"flex",alignItems:"center",gap:6,opacity:busy?0.5:1}}
+                onMouseEnter={e=>!busy&&(e.currentTarget.style.borderColor=C.accent)}
+                onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+                <span style={{color:C.dim,fontSize:11}}>r/</span><span>{s.name}</span><span style={{color:C.accent,fontSize:14}}>+</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 function Dashboard({user,onLogout}){
   const [section,setSection]=useState("accounts"); // "accounts" | "holders"
+  const [mainTab,setMainTab]=useState("notifications"); // "notifications" | "subreddits"
   const [openAccId,setOpenAccId]=useState(null);
   const [accounts,setAccounts]=useState([]);
   const [showAddAcc,setShowAddAcc]=useState(false);
@@ -504,6 +591,8 @@ function Dashboard({user,onLogout}){
     );
   }
 
+  const openAccount=accounts.find(a=>a.id===openAccId);
+
   return(
     <div style={{display:"flex",height:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",overflow:"hidden"}}>
       {showAddAcc&&<AddAccountModal onClose={()=>setShowAddAcc(false)} onAdded={()=>{setShowAddAcc(false);loadAccounts();}}/>}
@@ -527,43 +616,26 @@ function Dashboard({user,onLogout}){
           </div>
         </div>
 
-        {/* Accounts list */}
+        {/* Accounts list — clean, no subreddit expansion */}
         <div style={{flex:1,overflowY:"auto"}}>
           {accounts.length===0
             ?<div style={{padding:"10px 20px",fontSize:12,color:C.dim}}>No accounts yet. Click + Add to get started.</div>
             :accounts.map(acc=>{
-              const isOpen=openAccId===acc.id&&section==="accounts";
-              const accActive=openAccId===acc.id&&section==="accounts";
+              const active=openAccId===acc.id&&section==="accounts";
               return(
-                <div key={acc.id}>
-                  <div onClick={()=>{setOpenAccId(isOpen?null:acc.id);setSection("accounts");}}
-                    style={{display:"flex",alignItems:"center",background:accActive?"#111827":"none",borderLeft:accActive?`3px solid ${C.accent}`:"3px solid transparent",transition:"all 0.1s",cursor:"pointer"}}
-                    onMouseEnter={e=>{if(!accActive)e.currentTarget.style.background="#0F1117";}}
-                    onMouseLeave={e=>{if(!accActive)e.currentTarget.style.background="none";}}>
-                    <div style={{flex:1,padding:"10px 20px",minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,color:accActive?C.accent:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                        {acc.redditUsername?`u/${acc.redditUsername.replace(/^u\//,"")}`:acc.emailAddress}
-                      </div>
-                      {acc.redditUsername&&<div style={{fontSize:11,color:C.dim,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acc.emailAddress}</div>}
+                <div key={acc.id} onClick={()=>{setOpenAccId(acc.id);setSection("accounts");setMainTab("notifications");}}
+                  style={{display:"flex",alignItems:"center",background:active?"#111827":"none",borderLeft:active?`3px solid ${C.accent}`:"3px solid transparent",transition:"all 0.1s",cursor:"pointer",padding:"11px 20px"}}
+                  onMouseEnter={e=>{if(!active)e.currentTarget.style.background="#0F1117";}}
+                  onMouseLeave={e=>{if(!active)e.currentTarget.style.background="none";}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color:active?C.accent:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {acc.redditUsername?`u/${acc.redditUsername.replace(/^u\//,"")}`:acc.emailAddress}
                     </div>
-                    <span style={{color:C.dim,fontSize:11,paddingRight:14}}>{isOpen?"▲":"▼"}</span>
+                    {acc.redditUsername&&<div style={{fontSize:11,color:C.dim,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acc.emailAddress}</div>}
+                    <div style={{fontSize:10,color:active?C.accent+"80":C.dim,marginTop:2}}>
+                      {(acc.subreddits??[]).length} active · {(acc.pausedSubreddits??[]).length} on hold
+                    </div>
                   </div>
-                  {isOpen&&(
-                    <div style={{background:"#0A0D14",borderBottom:`1px solid ${C.border}20`,padding:"10px 20px 12px"}}>
-                      {acc.subreddits&&acc.subreddits.length>0&&(
-                        <>
-                          <div style={{fontSize:10,color:C.dim,letterSpacing:"0.06em",marginBottom:7}}>SUBREDDITS</div>
-                          <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>
-                            {acc.subreddits.map(s=><span key={s} style={{background:C.surface,border:`1px solid ${C.border}`,color:C.sub,padding:"2px 8px",borderRadius:10,fontSize:10}}>r/{s}</span>)}
-                          </div>
-                        </>
-                      )}
-                      <button onClick={e=>{e.stopPropagation();setShowManageAcc(true);}}
-                        style={{background:"none",border:`1px solid ${C.border}`,color:C.sub,cursor:"pointer",fontFamily:"inherit",fontSize:10,padding:"4px 10px",borderRadius:5,fontWeight:600}}>
-                        Manage Accounts
-                      </button>
-                    </div>
-                  )}
                 </div>
               );
             })
@@ -597,7 +669,24 @@ function Dashboard({user,onLogout}){
 
       {/* Main content */}
       {section==="accounts"
-        ? <MyNotifications accounts={accounts} openAccId={openAccId} onSetAccId={setOpenAccId}/>
+        ? openAccId
+          ? <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+              {/* Tab bar */}
+              <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,display:"flex",gap:0,flexShrink:0,padding:"0 32px"}}>
+                {[["notifications","Notifications"],["subreddits","Manage Subreddits"]].map(([key,label])=>{
+                  const a=mainTab===key;
+                  return(<button key={key} onClick={()=>setMainTab(key)} style={{background:"none",border:"none",borderBottom:a?`2px solid ${C.accent}`:"2px solid transparent",color:a?C.accent:C.dim,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:a?700:500,padding:"14px 18px",marginBottom:-1,transition:"color 0.12s"}}>{label}</button>);
+                })}
+              </div>
+              {mainTab==="notifications"
+                ?<MyNotifications accounts={accounts} openAccId={openAccId} onSetAccId={setOpenAccId}/>
+                :<ManageSubredditsPanel account={openAccount} onUpdated={loadAccounts}/>
+              }
+            </div>
+          : <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:C.dim}}>
+              <div style={{fontSize:32}}>👤</div>
+              <div style={{fontSize:14}}>Select an account from the sidebar</div>
+            </div>
         : selectedHolder
           ? <HolderDetail key={selectedHolder.id} holder={selectedHolder} onBack={()=>setSelectedHolder(null)}/>
           : <HoldersOverview holders={holders} onSelect={setSelectedHolder}/>

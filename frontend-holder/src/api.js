@@ -31,4 +31,5 @@ export const api = {
   getAccounts:         ()               => req("GET",  "/holder/accounts"),
   addAccount:          (data)           => req("POST", "/holder/accounts", data),
   deleteAccount:       (id)             => req("DELETE", `/holder/accounts/${id}`),
+  updateAccount:       (id, data)       => req("PUT",    `/holder/accounts/${id}`, data),
 };
