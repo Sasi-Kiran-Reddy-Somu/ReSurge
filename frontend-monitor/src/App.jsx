@@ -1,3 +1,4 @@
+// v2
 import { useState, useEffect, useRef } from "react";
 
 const C = { bg:"#0D0F16", surface:"#0F1117", border:"#1F2937", accent:"#3B82F6", green:"#22C55E", amber:"#F59E0B", red:"#EF4444", muted:"#6B7280", dim:"#374151", text:"#F9FAFB", sub:"#9CA3AF", orange:"#FF4500" };

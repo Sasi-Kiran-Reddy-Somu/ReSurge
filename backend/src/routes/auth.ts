@@ -94,37 +94,40 @@ authRoutes.post("/google", async (c) => {
   let roles: string[];
   let adminAcknowledged = true;
 
+  // Find or create user
+  let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const isNewSignup = !user;
+
   if (ADMIN_EMAILS.includes(email)) {
     role  = "main";
     roles = ["main"];
+  } else if (user) {
+    // Already registered — use their existing role(s), no invite needed
+    const existingRoles = user.roles?.length ? user.roles : [user.role];
+    role  = user.role;
+    roles = existingRoles;
   } else {
+    // New user — must have an invite
     const [invite] = await db.select().from(invitedUsers).where(eq(invitedUsers.email, email)).limit(1);
     if (!invite) return c.json({ error: "You haven't been invited. Contact the admin." }, 403);
     role  = invite.role;
     roles = [invite.role];
     adminAcknowledged = false;
+    // Remove the invite now that they're signing up
+    await db.delete(invitedUsers).where(eq(invitedUsers.email, email));
   }
-
-  // Find or create user
-  let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  const isNewSignup = !user;
 
   if (!user) {
     [user] = await db.insert(users).values({
       email, passwordHash: "", name, role, roles, adminAcknowledged,
     }).returning();
   } else {
-    // Ensure the role from invite is present
+    // Ensure the role from invite is present (handles edge case of re-invited user with new role)
     const currentRoles = user.roles?.length ? user.roles : [user.role];
     if (!currentRoles.includes(role)) {
       const merged = [...new Set([...currentRoles, role])];
       [user] = await db.update(users).set({ roles: merged }).where(eq(users.id, user.id)).returning();
     }
-  }
-
-  // Remove from pending invites now that they've signed up
-  if (!ADMIN_EMAILS.includes(email)) {
-    await db.delete(invitedUsers).where(eq(invitedUsers.email, email));
   }
 
   // Monitors are also holders — give them the holder role + self-assignment
