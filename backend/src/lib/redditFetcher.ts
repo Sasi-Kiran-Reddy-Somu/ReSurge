@@ -62,6 +62,7 @@ export async function fetchNewPostsRSS(subreddits: string[]): Promise<RedditPost
         continue;
       }
       const xml = await res.text();
+      console.log(`[RSS] r/${sub} raw (first 300 chars):`, xml.slice(0, 300));
       const posts = parseRedditRSS(xml, sub);
       console.log(`[RSS] Fetched ${posts.length} posts from r/${sub}`);
       results.push(...posts);
