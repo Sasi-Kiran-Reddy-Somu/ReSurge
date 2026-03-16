@@ -66,7 +66,7 @@ export default function AlertsPanel({ onSelectHolder, onAckChange }: { onSelectH
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {/* Header */}
       <div style={{ padding: "18px 28px", borderBottom: "1px solid #1A1D2E", display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
-        <span style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontWeight: 700, fontSize: 15 }}>🔔 Alerts</span>
+        <span style={{ fontFamily: "'IBM Plex Sans',sans-serif", fontWeight: 700, fontSize: 15 }}>Alerts</span>
         {newSignups.length > 0 && (
           <span style={{ background: "#EF4444", color: "#fff", borderRadius: 10, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>
             {newSignups.length} new

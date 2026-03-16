@@ -229,9 +229,27 @@ adminRoutes.post("/invites", async (c) => {
   if (!email || !role) return c.json({ error: "email and role required" }, 400);
   if (!["monitor", "holder", "main"].includes(role)) return c.json({ error: "Invalid role" }, 400);
 
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Check if user already exists
+  const [existingUser] = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
+  if (existingUser) {
+    const existingRole = existingUser.role ?? (existingUser.roles?.[0]);
+    if (existingRole === role) {
+      return c.json({ error: `User already exists as ${role}`, code: "USER_EXISTS_SAME_ROLE" }, 409);
+    } else {
+      return c.json({ error: `User already exists as ${existingRole}`, code: "USER_EXISTS_DIFF_ROLE", existingRole }, 409);
+    }
+  }
+
+  // Check if invite already pending
+  const [existingInvite] = await db.select().from(invitedUsers).where(eq(invitedUsers.email, normalizedEmail)).limit(1);
+  if (existingInvite) {
+    return c.json({ error: `Invite already sent to this email as ${existingInvite.role}`, code: "INVITE_EXISTS", existingRole: existingInvite.role }, 409);
+  }
+
   const [row] = await db.insert(invitedUsers)
-    .values({ email: email.toLowerCase().trim(), role })
-    .onConflictDoUpdate({ target: invitedUsers.email, set: { role } })
+    .values({ email: normalizedEmail, role })
     .returning();
 
   // Send invite email (best-effort — don't fail the request if email fails)

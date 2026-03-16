@@ -98,23 +98,27 @@ authRoutes.post("/google", async (c) => {
   let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   const isNewSignup = !user;
 
-  if (ADMIN_EMAILS.includes(email)) {
-    role  = "main";
-    roles = ["main"];
-  } else if (user) {
+  if (user) {
     // Already registered — use their existing role(s), no invite needed
     const existingRoles = user.roles?.length ? user.roles : [user.role];
     role  = user.role;
     roles = existingRoles;
   } else {
-    // New user — must have an invite
+    // New user — check for an explicit invite first
     const [invite] = await db.select().from(invitedUsers).where(eq(invitedUsers.email, email)).limit(1);
-    if (!invite) return c.json({ error: "You haven't been invited. Contact the admin." }, 403);
-    role  = invite.role;
-    roles = [invite.role];
-    adminAcknowledged = false;
-    // Remove the invite now that they're signing up
-    await db.delete(invitedUsers).where(eq(invitedUsers.email, email));
+    if (invite) {
+      // Explicit invite always wins (even for admin emails — allows role changes)
+      role  = invite.role;
+      roles = [invite.role];
+      adminAcknowledged = false;
+      await db.delete(invitedUsers).where(eq(invitedUsers.email, email));
+    } else if (ADMIN_EMAILS.includes(email)) {
+      // No invite — fall back to hardcoded admin for super-admin emails
+      role  = "main";
+      roles = ["main"];
+    } else {
+      return c.json({ error: "You haven't been invited. Contact the admin." }, 403);
+    }
   }
 
   if (!user) {

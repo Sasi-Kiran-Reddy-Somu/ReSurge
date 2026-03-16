@@ -1,8 +1,8 @@
 import { Resend } from "resend";
 
-const HOLDER_APP_URL  = process.env.HOLDER_APP_URL  ?? "http://localhost:3002";
-const MONITOR_APP_URL = process.env.MONITOR_APP_URL ?? "http://localhost:3003";
-const FROM_EMAIL      = process.env.FROM_EMAIL ?? "onboarding@resend.dev";
+// Single portal URL — all roles are served from one Vercel deployment
+const APP_URL    = process.env.APP_URL ?? process.env.HOLDER_APP_URL ?? "http://localhost:5173";
+const FROM_EMAIL = process.env.FROM_EMAIL ?? "onboarding@resend.dev";
 
 function getResend() {
   const key = process.env.RESEND_API_KEY;
@@ -49,8 +49,7 @@ export async function sendInviteEmail(opts: {
 }): Promise<void> {
   const roleLabels: Record<string, string> = { holder: "Holder", monitor: "Monitor", main: "Admin" };
   const roleLabel = roleLabels[opts.role] ?? opts.role;
-  const MAIN_APP_URL = process.env.MAIN_APP_URL ?? "http://localhost:3000";
-  const loginUrl = opts.role === "holder" ? HOLDER_APP_URL : opts.role === "main" ? MAIN_APP_URL : MONITOR_APP_URL;
+  const loginUrl = APP_URL;
   const subject = `You've been invited to ReSurge as a ${roleLabel}`;
   const html = buildInviteHtml({ toEmail: opts.toEmail, roleLabel, loginUrl });
 
@@ -69,7 +68,7 @@ export async function sendStack4Notification(opts: {
   subreddit:  string;
   growth:     number;
 }): Promise<void> {
-  const deepLink = `${HOLDER_APP_URL}/?postId=${opts.postId}&token=${encodeURIComponent(opts.token)}&role=holder`;
+  const deepLink = `${APP_URL}/?postId=${opts.postId}&token=${encodeURIComponent(opts.token)}`;
 
   await sendEmail(opts.toEmail, `🔥 Viral post in r/${opts.subreddit} — act now`, `
 <!DOCTYPE html>
@@ -131,7 +130,7 @@ export async function sendStack4Notification(opts: {
     <div style="border-top:1px solid #1F2937;padding-top:20px;text-align:center;">
       <div style="font-size:11px;color:#374151;line-height:1.7;">
         You received this because your account is subscribed to r/${opts.subreddit}.<br>
-        <a href="${HOLDER_APP_URL}" style="color:#4B5563;text-decoration:underline;">Open ReSurge</a>
+        <a href="${APP_URL}" style="color:#4B5563;text-decoration:underline;">Open ReSurge</a>
       </div>
     </div>
 

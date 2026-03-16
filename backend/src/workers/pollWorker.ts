@@ -156,7 +156,8 @@ export function createPollWorker() {
                 accountId: account.id,
               }).returning();
 
-              const token = signToken({ userId: user.id, role: "holder" });
+              const notifRole = userRoles.includes("monitor") ? "monitor" : "holder";
+              const token = signToken({ userId: user.id, role: notifRole });
               try {
                 await sendStack4Notification({
                   toEmail:   user.email,

@@ -213,7 +213,7 @@ export default function MonitorPanel() {
   return (
     <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
       <div style={{ display:"flex", alignItems:"center", marginBottom:20 }}>
-        <span style={{ fontFamily:"'IBM Plex Sans',sans-serif", fontWeight:700, fontSize:15 }}>👁 Monitor Management</span>
+        <span style={{ fontFamily:"'IBM Plex Sans',sans-serif", fontWeight:700, fontSize:15 }}>Monitor Management</span>
       </div>
       <input
         style={{ ...S.input, margin:"20px 0 12px" }}

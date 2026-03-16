@@ -1,20 +1,12 @@
 import type { RedditPost } from "../types/index.js";
-import { ProxyAgent, setGlobalDispatcher } from "undici";
 
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
-
-// Configure IPRoyal residential proxy if env var is set
-const PROXY_URL = process.env.IPROYAL_PROXY_URL ?? null;
-if (PROXY_URL) {
-  setGlobalDispatcher(new ProxyAgent(PROXY_URL));
-  console.log("[Proxy] IPRoyal residential proxy active");
-}
 
 const CHUNK_SIZE = 5;
 
 /**
  * Fetch latest posts from multiple subreddits, chunked into batches of CHUNK_SIZE.
- * All requests are routed through IPRoyal proxy if IPROYAL_PROXY_URL is set.
+ * Uses multi-subreddit URL: /r/sub1+sub2+sub3/new.json
  */
 export async function fetchNewPostsMulti(
   subreddits: string[],
@@ -61,7 +53,7 @@ export async function fetchNewPostsMulti(
 
 /**
  * Refresh engagement scores for a batch of post IDs.
- * All requests are routed through IPRoyal proxy if IPROYAL_PROXY_URL is set.
+ * All IDs across all subreddits are merged and batched into groups of 100.
  */
 export async function refreshPostEngagement(
   redditIds: string[]

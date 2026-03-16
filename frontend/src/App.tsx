@@ -106,7 +106,7 @@ function LoginGate({ onAuth }: { onAuth: (token: string, user: any, isNewSignup:
         <div style={{ width:72, height:72, background:"#FF4500", borderRadius:18, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, fontWeight:800, color:"#fff", marginBottom:32 }}>r/</div>
         <div style={{ fontSize:48, fontWeight:800, color:"#F9FAFB", letterSpacing:"-0.03em", marginBottom:14 }}>ReSurge</div>
         <div style={{ fontSize:16, color:"#6B7280", maxWidth:340, textAlign:"center", lineHeight:1.7 }}>
-          Reddit viral post tracker — catch trending posts before they blow up.
+          Reddit viral post tracker — catch trending posts before they blow up, then generate and post AI comments in one click.
         </div>
       </div>
       {/* Right: Sign-in */}
@@ -274,6 +274,7 @@ async function reqM(method: string, path: string, body?: any) {
   try {
     const res = await fetch(`/api${path}`, { method, signal: ctrl.signal, headers: {"Content-Type":"application/json", ...(getTokenM() ? {Authorization:`Bearer ${getTokenM()}`} : {})}, body: body ? JSON.stringify(body) : undefined });
     clearTimeout(tid);
+    if (res.status === 401) { localStorage.removeItem("token"); localStorage.removeItem("user_data"); window.location.reload(); throw new Error("Session expired"); }
     if (!res.ok) { const e = await res.json().catch(() => ({error: res.statusText})); throw new Error(e.error ?? "HTTP " + res.status); }
     return res.json();
   } catch(e: any) { clearTimeout(tid); if (e.name === "AbortError") throw new Error("Request timed out"); throw e; }
@@ -544,24 +545,30 @@ function PostPopupM({ notif, onClose, onAction }: any) {
         {!comment && <button onClick={generate} disabled={loading} style={{ ...btnM(loading ? "#1E3A5F" : C_M.accent, "#fff"), width: "100%", padding: "14px", marginBottom: 16, fontSize: 14 }}>{loading ? "Generating..." : "✨ Generate Comment"}</button>}
         {err && <div style={{ color: C_M.red, fontSize: 13, marginBottom: 12 }}>{err}</div>}
         {comment && <div style={{ background: "#080B12", border: `1px solid #1E3A5F`, borderRadius: 12, padding: 22, marginBottom: 20 }}><p style={{ margin: "0 0 16px", fontSize: 14, color: "#D1D5DB", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{comment}</p><div style={{ display: "flex", gap: 10 }}><button onClick={() => { setComment(null); generate(); }} style={btnM("#1F2937", C_M.sub)}>↺ Regenerate</button><button onClick={copy} style={btnM(copied ? "#064E3B" : "#1F2937", copied ? C_M.green : C_M.sub)}>{copied ? "✓ Copied!" : "Copy Text"}</button></div></div>}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: showPaste ? 16 : 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
           <button onClick={() => window.open(notif.postUrl, "_blank")} style={btnM("#1A1D2E", C_M.sub, { border: `1px solid ${C_M.border}` })}>Open Post ↗</button>
-          <button onClick={async () => { await reqM("PUT", `/holder/notifications/${notif.id}/done`); onAction(); }} style={btnM("#1F2937", C_M.muted)}>Done</button>
-          <button onClick={() => setShowPaste(true)} style={btnM("#064E3B", C_M.green)}>✓ Posted</button>
+          <button onClick={() => setShowPaste((v: boolean) => !v)} style={btnM("#064E3B", C_M.green)}>Paste Link</button>
         </div>
-        {showPaste && <div style={{ background: "#060D0A", border: `1px solid #065F46`, borderRadius: 10, padding: 20, marginTop: 12 }}><label style={{ fontSize: 12, color: C_M.muted, display: "block", marginBottom: 8 }}>Paste your Reddit comment link:</label><input style={{ ...inpM, marginBottom: 12 }} placeholder="https://reddit.com/r/.../comment/..." value={link} onChange={(e: any) => setLink(e.target.value)} /><button onClick={async () => { if (!link.trim()) return; await reqM("PUT", `/holder/notifications/${notif.id}/posted`, { postedLink: link.trim() }); onAction(); }} style={{ ...btnM(C_M.green, "#fff"), width: "100%" }}>Submit & Save</button></div>}
+        {showPaste && <div style={{ background: "#060D0A", border: `1px solid #065F46`, borderRadius: 10, padding: 20, marginTop: 4 }}><label style={{ fontSize: 12, color: C_M.muted, display: "block", marginBottom: 8 }}>Paste your Reddit comment link:</label><input style={{ ...inpM, marginBottom: 12 }} placeholder="https://reddit.com/r/.../comment/..." value={link} onChange={(e: any) => setLink(e.target.value)} /><button onClick={async () => { if (!link.trim()) return; await reqM("PUT", `/holder/notifications/${notif.id}/posted`, { postedLink: link.trim() }); onAction(); }} style={{ ...btnM(C_M.green, "#fff"), width: "100%" }}>Submit & Save</button></div>}
       </div>
     </div>
   );
 }
 
-function MyNotificationsM({ accounts, openAccId }: any) {
+function MyNotificationsM({ accounts, openAccId, initialPostId }: any) {
   const [notifs, setNotifs] = useState<any[]>([]);
   const [tab, setTab] = useState("all");
   const [search, setSearch] = useState("");
   const [popup, setPopup] = useState<any>(null);
   useEffect(() => {
     reqM("GET", "/holder/notifications").then(setNotifs).catch(() => {});
+    const nIdM = sessionStorage.getItem("pending_post_id") || initialPostId;
+    if (nIdM) {
+      sessionStorage.removeItem("pending_post_id");
+      reqM("GET", `/holder/notifications/${nIdM}`).then((notif: any) => {
+        setPopup(notif);
+      }).catch(() => {});
+    }
     const interval = setInterval(() => { reqM("GET", "/holder/notifications").then(setNotifs).catch(() => {}); }, 30_000);
     return () => clearInterval(interval);
   }, []);
@@ -618,9 +625,47 @@ function MyNotificationsM({ accounts, openAccId }: any) {
   );
 }
 
-function MonitorDashboard({ user, onLogout }: any) {
+function ManageSubsPanelM({ account, onUpdated }: any) {
+  const [allSubs, setAllSubs] = useState<any[]>([]);
+  const [sel, setSel] = useState(new Set<string>(account?.subreddits ?? []));
+  const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState("");
+  useEffect(() => { reqM("GET", "/holder/subreddits").then(setAllSubs).catch(() => {}); }, []);
+  useEffect(() => { setSel(new Set(account?.subreddits ?? [])); }, [account?.id]);
+  function toggle(name: string) { setSel(p => { const n = new Set(p); n.has(name) ? n.delete(name) : n.add(name); return n; }); }
+  async function save() {
+    if (!account) return;
+    setBusy(true);
+    try { await reqM("PUT", `/holder/accounts/${account.id}`, { subreddits: [...sel] }); onUpdated(); }
+    catch(e: any) { alert(e.message); } finally { setBusy(false); }
+  }
+  const visible = q ? allSubs.filter((s: any) => s.name.toLowerCase().includes(q.toLowerCase())) : allSubs;
+  return (
+    <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 16, gap: 12 }}>
+        <span style={{ fontSize: 13, color: C_M.sub }}>{sel.size} selected</span>
+        <button onClick={save} disabled={busy || !account} style={{ ...btnM(C_M.accent, "#fff"), padding: "7px 16px", fontSize: 12 }}>{busy ? "Saving…" : "Save Changes"}</button>
+      </div>
+      <input value={q} onChange={(e: any) => setQ(e.target.value)} placeholder="Search subreddits…"
+        style={{ background: C_M.surface, border: `1px solid ${C_M.border}`, borderRadius: 8, padding: "8px 12px", color: C_M.text, fontFamily: "inherit", fontSize: 12, width: "100%", boxSizing: "border-box" as const, outline: "none", marginBottom: 16 }}/>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10 }}>
+        {visible.map((s: any) => (
+          <div key={s.name} onClick={() => toggle(s.name)}
+            style={{ background: sel.has(s.name) ? "#0D1626" : C_M.surface, border: `1px solid ${sel.has(s.name) ? C_M.accent : C_M.border}`, borderRadius: 10, padding: "14px 16px", cursor: "pointer", transition: "all 0.15s" }}>
+            <div style={{ fontSize: 11, color: C_M.muted, marginBottom: 4 }}>r/</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: sel.has(s.name) ? C_M.accent : C_M.text }}>{s.name}</div>
+          </div>
+        ))}
+        {visible.length === 0 && <div style={{ color: C_M.dim, fontSize: 13 }}>No results.</div>}
+      </div>
+    </div>
+  );
+}
+
+function MonitorDashboard({ user, onLogout, initialPostId }: any) {
   const [section, setSection] = useState("accounts");
   const [openAccId, setOpenAccId] = useState<any>(null);
+  const [mainTab, setMainTab] = useState("notifications");
   const [accounts, setAccounts] = useState<any[]>([]);
   const [showAddAcc, setShowAddAcc] = useState(false);
   const [delAccBusy, setDelAccBusy] = useState<any>(null);
@@ -683,6 +728,8 @@ function MonitorDashboard({ user, onLogout }: any) {
     );
   }
 
+  const openAccount = accounts.find((a: any) => a.id === openAccId);
+
   return (
     <div style={{ display: "flex", height: "100vh", background: C_M.bg, fontFamily: "'IBM Plex Sans',sans-serif", overflow: "hidden" }}>
       {showAddAcc && <AddAccountModalH onClose={() => setShowAddAcc(false)} onAdded={() => { setShowAddAcc(false); loadAccounts(); }} />}
@@ -691,59 +738,40 @@ function MonitorDashboard({ user, onLogout }: any) {
 
       <div style={{ width: 280, background: C_M.surface, borderRight: `1px solid ${C_M.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "24px 20px 18px", borderBottom: `1px solid ${C_M.border}` }}>
-          <div style={{ fontSize: 11, color: C_M.accent, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 14 }}>👁 MONITOR PORTAL</div>
+          <div style={{ fontSize: 11, color: C_M.accent, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 14 }}>MONITOR PORTAL</div>
           <div style={{ fontWeight: 700, fontSize: 15, color: C_M.text, marginBottom: 3 }}>{user.name}</div>
           <div style={{ fontSize: 12, color: C_M.muted }}>{user.email}</div>
         </div>
 
-        <div style={{ padding: "12px 20px 8px", flexShrink: 0 }}>
-          <div style={{ fontSize: 10, color: C_M.dim, letterSpacing: "0.08em", marginBottom: 8 }}>MY ACCOUNTS ({accounts.length})</div>
-          <button onClick={() => setShowAddAcc(true)} style={{ ...btnM(C_M.accent, "#fff"), width: "100%", padding: "9px", fontSize: 12 }}>＋ Add Account</button>
+        <div style={{ padding: "12px 20px 6px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <div style={{ fontSize: 10, color: C_M.dim, letterSpacing: "0.08em" }}>MY ACCOUNTS ({accounts.length})</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={() => setShowAddAcc(true)} style={{ background: "none", border: `1px solid ${C_M.accent}40`, color: C_M.accent, cursor: "pointer", fontFamily: "inherit", fontSize: 10, padding: "3px 8px", borderRadius: 5, fontWeight: 700 }}>＋ Add</button>
+            {accounts.length > 0 && <button onClick={() => setShowManageAcc(true)} style={{ background: "none", border: `1px solid ${C_M.border}`, color: C_M.sub, cursor: "pointer", fontFamily: "inherit", fontSize: 10, padding: "3px 8px", borderRadius: 5, fontWeight: 600 }}>Manage</button>}
+          </div>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto" }}>
           {accounts.length === 0
-            ? <div style={{ padding: "10px 20px", fontSize: 12, color: C_M.dim }}>No accounts yet. Click + Add Account to get started.</div>
+            ? <div style={{ padding: "10px 20px", fontSize: 12, color: C_M.dim }}>No accounts yet. Click + Add to get started.</div>
             : accounts.map((acc: any) => {
-              const isOpen = openAccId === acc.id && section === "accounts";
+              const active = openAccId === acc.id && section === "accounts";
               return (
-                <div key={acc.id}>
-                  <div onClick={() => { setOpenAccId(isOpen ? null : acc.id); setSection("accounts"); }}
-                    style={{ display: "flex", alignItems: "center", background: isOpen ? "#111827" : "none", borderLeft: isOpen ? `3px solid ${C_M.accent}` : "3px solid transparent", transition: "all 0.1s", cursor: "pointer" }}
-                    onMouseEnter={(e: any) => { if (!isOpen) e.currentTarget.style.background = "#0F1117"; }}
-                    onMouseLeave={(e: any) => { if (!isOpen) e.currentTarget.style.background = "none"; }}>
-                    <div style={{ flex: 1, padding: "10px 20px", minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: isOpen ? C_M.accent : C_M.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                        {acc.redditUsername ? `u/${acc.redditUsername.replace(/^u\//, "")}` : acc.emailAddress}
-                      </div>
-                      {acc.redditUsername && <div style={{ fontSize: 11, color: C_M.dim, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{acc.emailAddress}</div>}
+                <div key={acc.id} onClick={() => { setOpenAccId(acc.id); setSection("accounts"); setMainTab("notifications"); }}
+                  style={{ display: "flex", alignItems: "center", background: active ? "#111827" : "none", borderLeft: active ? `3px solid ${C_M.accent}` : "3px solid transparent", transition: "all 0.1s", cursor: "pointer", padding: "11px 20px" }}
+                  onMouseEnter={(e: any) => { if (!active) e.currentTarget.style.background = "#0F1117"; }}
+                  onMouseLeave={(e: any) => { if (!active) e.currentTarget.style.background = "none"; }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: active ? C_M.accent : C_M.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
+                      {acc.redditUsername ? `u/${acc.redditUsername.replace(/^u\//, "")}` : acc.emailAddress}
                     </div>
-                    <span style={{ color: C_M.dim, fontSize: 11, paddingRight: 14 }}>{isOpen ? "▲" : "▼"}</span>
+                    {acc.redditUsername && <div style={{ fontSize: 11, color: C_M.dim, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{acc.emailAddress}</div>}
+                    <div style={{ fontSize: 10, color: active ? `${C_M.accent}80` : C_M.dim, marginTop: 2 }}>{(acc.subreddits ?? []).length} active</div>
                   </div>
-                  {isOpen && (
-                    <div style={{ background: "#0A0D14", borderBottom: `1px solid ${C_M.border}20`, padding: "10px 20px 12px" }}>
-                      {acc.subreddits && acc.subreddits.length > 0 && (
-                        <>
-                          <div style={{ fontSize: 10, color: C_M.dim, letterSpacing: "0.06em", marginBottom: 7 }}>SUBREDDITS</div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                            {acc.subreddits.map((s: string) => <span key={s} style={{ background: C_M.surface, border: `1px solid ${C_M.border}`, color: C_M.sub, padding: "2px 8px", borderRadius: 10, fontSize: 10 }}>r/{s}</span>)}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
                 </div>
               );
             })
           }
-          {accounts.length > 0 && (
-            <div style={{ padding: "10px 20px" }}>
-              <button onClick={() => setShowManageAcc(true)}
-                style={{ background: "none", border: `1px solid ${C_M.border}`, color: C_M.sub, cursor: "pointer", fontFamily: "inherit", fontSize: 11, padding: "6px 14px", borderRadius: 6, fontWeight: 600, width: "100%" }}>
-                Manage Accounts
-              </button>
-            </div>
-          )}
         </div>
 
         <div style={{ borderTop: `1px solid ${C_M.border}`, padding: "8px 12px" }}>
@@ -769,7 +797,23 @@ function MonitorDashboard({ user, onLogout }: any) {
       </div>
 
       {section === "accounts"
-        ? <MyNotificationsM accounts={accounts} openAccId={openAccId} />
+        ? openAccId
+          ? <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              <div style={{ background: C_M.surface, borderBottom: `1px solid ${C_M.border}`, display: "flex", flexShrink: 0, padding: "0 32px" }}>
+                {[["notifications","Notifications"],["subreddits","Manage Subreddits"]].map(([key,label]) => {
+                  const a = mainTab === key;
+                  return (<button key={key} onClick={() => setMainTab(key)} style={{ background: "none", border: "none", borderBottom: a ? `2px solid ${C_M.accent}` : "2px solid transparent", color: a ? C_M.accent : C_M.dim, cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: a ? 700 : 500, padding: "14px 18px", marginBottom: -1, transition: "color 0.12s" }}>{label}</button>);
+                })}
+              </div>
+              {mainTab === "notifications"
+                ? <MyNotificationsM accounts={accounts} openAccId={openAccId} initialPostId={initialPostId} />
+                : <ManageSubsPanelM account={openAccount} onUpdated={loadAccounts} />
+              }
+            </div>
+          : <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, color: C_M.dim }}>
+              <div style={{ fontSize: 32 }}>👤</div>
+              <div style={{ fontSize: 14 }}>Select an account from the sidebar</div>
+            </div>
         : selectedHolder
           ? <HolderDetail key={selectedHolder.id} holder={selectedHolder} onBack={() => setSelectedHolder(null)} />
           : <HoldersOverviewM holders={holders} onSelect={setSelectedHolder} />
@@ -778,14 +822,14 @@ function MonitorDashboard({ user, onLogout }: any) {
   );
 }
 
-function MonitorApp({ user, onLogout }: any) {
+function MonitorApp({ user, onLogout, initialPostId }: any) {
   const [newSignup, setNewSignup] = useState(false);
   useEffect(() => {
     const flag = sessionStorage.getItem("monitor_new_signup");
     if (flag) { sessionStorage.removeItem("monitor_new_signup"); setNewSignup(true); }
   }, []);
   if (newSignup) return <AccountSetupH onDone={() => setNewSignup(false)} />;
-  return <MonitorDashboard user={user} onLogout={onLogout} />;
+  return <MonitorDashboard user={user} onLogout={onLogout} initialPostId={initialPostId} />;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -805,6 +849,7 @@ async function reqH(method: string, path: string, body?: any) {
     headers: { "Content-Type": "application/json", ...(getTokenH() ? { Authorization: `Bearer ${getTokenH()}` } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (res.status === 401) { localStorage.removeItem("token"); localStorage.removeItem("user_data"); window.location.reload(); throw new Error("Session expired"); }
   if (!res.ok) { const e = await res.json().catch(() => ({error: res.statusText})); throw new Error(e.error ?? "Request failed"); }
   return res.json();
 }
@@ -965,12 +1010,11 @@ function PostPopupH({ notif, cachedComment, onCommentCached, onClose, onAction }
         {!comment && <button onClick={generate} disabled={loading} style={{...btnH(loading?"#78350F":C_H.accent,loading?"#FCD34D":"#000"),width:"100%",padding:"14px",marginBottom:16,fontSize:14}}>{loading?"Generating...":"✨ Generate Comment"}</button>}
         {err && <div style={{color:C_H.red,fontSize:13,marginBottom:12}}>{err}</div>}
         {comment && <div style={{background:"#080B12",border:`1px solid #1E3A5F`,borderRadius:12,padding:22,marginBottom:20}}><p style={{margin:"0 0 16px",fontSize:14,color:"#D1D5DB",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{comment}</p><div style={{display:"flex",gap:10}}><button onClick={() => { setComment(null); generate(); }} style={btnH("#1F2937",C_H.sub)}>↺ Regenerate</button><button onClick={copy} style={btnH(copied?"#064E3B":"#1F2937",copied?C_H.green:C_H.sub)}>{copied?"✓ Copied!":"Copy Text"}</button></div></div>}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:showPaste?16:0}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
           <button onClick={() => window.open(notif.postUrl,"_blank")} style={btnH("#1A1D2E",C_H.sub,{border:`1px solid ${C_H.border}`})}>Open Post ↗</button>
-          <button onClick={async () => { await holderApi.markDone(notif.id); onAction(); }} style={btnH("#1F2937",C_H.muted)}>Done</button>
-          <button onClick={() => setShowPaste(true)} style={btnH("#064E3B",C_H.green)}>✓ Posted</button>
+          <button onClick={() => setShowPaste(v => !v)} style={btnH("#064E3B",C_H.green)}>Paste Link</button>
         </div>
-        {showPaste && <div style={{background:"#060D0A",border:`1px solid #065F46`,borderRadius:10,padding:20,marginTop:12}}><label style={{fontSize:12,color:C_H.muted,display:"block",marginBottom:8}}>Paste your Reddit comment link:</label><input style={{...inpH,marginBottom:12}} placeholder="https://reddit.com/r/.../comment/..." value={link} onChange={(e: any) => setLink(e.target.value)}/><button onClick={async () => { if (!link.trim()) return; await holderApi.markPosted(notif.id, link.trim()); onAction(); }} style={{...btnH(C_H.green,"#000"),width:"100%"}}>Submit & Save</button></div>}
+        {showPaste && <div style={{background:"#060D0A",border:`1px solid #065F46`,borderRadius:10,padding:20,marginTop:4}}><label style={{fontSize:12,color:C_H.muted,display:"block",marginBottom:8}}>Paste your Reddit comment link:</label><input style={{...inpH,marginBottom:12}} placeholder="https://reddit.com/r/.../comment/..." value={link} onChange={(e: any) => setLink(e.target.value)}/><button onClick={async () => { if (!link.trim()) return; await holderApi.markPosted(notif.id, link.trim()); onAction(); }} style={{...btnH(C_H.green,"#000"),width:"100%"}}>Submit & Save</button></div>}
       </div>
     </div>
   );
@@ -1084,10 +1128,48 @@ function ManageAccountsModalH({ accounts, onClose, onDeleted, onAdd, onEdit, del
   );
 }
 
+function ManageSubsPanelH({ account, onUpdated }: any) {
+  const [allSubs, setAllSubs] = useState<any[]>([]);
+  const [sel, setSel] = useState(new Set<string>(account?.subreddits ?? []));
+  const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState("");
+  useEffect(() => { holderApi.getSubreddits().then(setAllSubs).catch(() => {}); }, []);
+  useEffect(() => { setSel(new Set(account?.subreddits ?? [])); }, [account?.id]);
+  function toggle(name: string) { setSel(p => { const n = new Set(p); n.has(name) ? n.delete(name) : n.add(name); return n; }); }
+  async function save() {
+    if (!account) return;
+    setBusy(true);
+    try { await holderApi.updateAccount(account.id, { subreddits: [...sel] }); onUpdated(); }
+    catch(e: any) { alert(e.message); } finally { setBusy(false); }
+  }
+  const visible = q ? allSubs.filter((s: any) => s.name.toLowerCase().includes(q.toLowerCase())) : allSubs;
+  return (
+    <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 16, gap: 12 }}>
+        <span style={{ fontSize: 13, color: C_H.sub }}>{sel.size} selected</span>
+        <button onClick={save} disabled={busy || !account} style={{ ...btnH(C_H.accent, "#000"), padding: "7px 16px", fontSize: 12 }}>{busy ? "Saving…" : "Save Changes"}</button>
+      </div>
+      <input value={q} onChange={(e: any) => setQ(e.target.value)} placeholder="Search subreddits…"
+        style={{ background: C_H.surface, border: `1px solid ${C_H.border}`, borderRadius: 8, padding: "8px 12px", color: C_H.text, fontFamily: "inherit", fontSize: 12, width: "100%", boxSizing: "border-box" as const, outline: "none", marginBottom: 16 }}/>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10 }}>
+        {visible.map((s: any) => (
+          <div key={s.name} onClick={() => toggle(s.name)}
+            style={{ background: sel.has(s.name) ? "#1C1400" : C_H.surface, border: `1px solid ${sel.has(s.name) ? C_H.accent : C_H.border}`, borderRadius: 10, padding: "14px 16px", cursor: "pointer", transition: "all 0.15s" }}>
+            <div style={{ fontSize: 11, color: C_H.muted, marginBottom: 4 }}>r/</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: sel.has(s.name) ? C_H.accent : C_H.text }}>{s.name}</div>
+          </div>
+        ))}
+        {visible.length === 0 && <div style={{ color: C_H.dim, fontSize: 13 }}>No results.</div>}
+      </div>
+    </div>
+  );
+}
+
 function HolderDashboard({ user, onLogout, initialPostId }: any) {
   const [notifs, setNotifs] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [openAccId, setOpenAccId] = useState<any>(() => sessionStorage.getItem("holder_acc_id") || null);
+  const [holderMainTab, setHolderMainTab] = useState("notifications");
   const [tab, setTab] = useState(() => sessionStorage.getItem("holder_tab") || "all");
   const [search, setSearch] = useState("");
   const [timeFilter, setTimeFilter] = useState("all");
@@ -1103,15 +1185,14 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
   useEffect(() => {
     load();
     loadAccounts();
-    // Handle deep-link postId (passed from URL or as prop)
-    const p = new URLSearchParams(window.location.search);
-    const nId = initialPostId || p.get("postId");
+    // Handle deep-link: read directly from sessionStorage so it's always available
+    const nId = sessionStorage.getItem("pending_post_id") || initialPostId;
     if (nId) {
+      sessionStorage.removeItem("pending_post_id");
       holderApi.getNotification(nId).then((notif: any) => {
         setPopup(notif);
         if (notif.accountId) setOpenAccId(notif.accountId);
       }).catch(() => {});
-      window.history.replaceState({}, "", "/");
     }
     const interval = setInterval(() => { load(); }, 30_000);
     return () => clearInterval(interval);
@@ -1170,69 +1251,40 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
 
       <div style={{width:270,background:C_H.surface,borderRight:`1px solid ${C_H.border}`,display:"flex",flexDirection:"column",flexShrink:0}}>
         <div style={{padding:"24px 20px 18px",borderBottom:`1px solid ${C_H.border}`}}>
-          <div style={{fontSize:11,color:C_H.accent,fontWeight:700,letterSpacing:"0.1em",marginBottom:14}}>🎯 HOLDER PORTAL</div>
+          <div style={{fontSize:11,color:C_H.accent,fontWeight:700,letterSpacing:"0.1em",marginBottom:14}}>HOLDER PORTAL</div>
           <div style={{fontWeight:700,fontSize:15,color:C_H.text,marginBottom:3}}>{user.name}</div>
           <div style={{fontSize:12,color:C_H.muted}}>{user.email}</div>
         </div>
 
-        <div style={{padding:"12px 20px 8px",flexShrink:0}}>
-          <div style={{fontSize:10,color:C_H.dim,letterSpacing:"0.08em",marginBottom:8}}>MY ACCOUNTS ({accounts.length})</div>
-          <button onClick={() => setShowAddAcc(true)} style={{...btnH(C_H.accent,"#000"),width:"100%",padding:"9px",fontSize:12}}>＋ Add Account</button>
+        <div style={{padding:"12px 20px 6px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
+          <div style={{fontSize:10,color:C_H.dim,letterSpacing:"0.08em"}}>MY ACCOUNTS ({accounts.length})</div>
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={() => setShowAddAcc(true)} style={{background:"none",border:`1px solid ${C_H.accent}40`,color:C_H.accent,cursor:"pointer",fontFamily:"inherit",fontSize:10,padding:"3px 8px",borderRadius:5,fontWeight:700}}>＋ Add</button>
+            {accounts.length > 0 && <button onClick={() => setShowManageAcc(true)} style={{background:"none",border:`1px solid ${C_H.border}`,color:C_H.sub,cursor:"pointer",fontFamily:"inherit",fontSize:10,padding:"3px 8px",borderRadius:5,fontWeight:600}}>Manage</button>}
+          </div>
         </div>
 
         <div style={{flex:1,overflowY:"auto"}}>
           {accounts.length === 0
-            ? <div style={{padding:"10px 20px",fontSize:12,color:C_H.dim}}>No accounts yet. Click + Add Account to get started.</div>
+            ? <div style={{padding:"10px 20px",fontSize:12,color:C_H.dim}}>No accounts yet. Click + Add to get started.</div>
             : accounts.map((acc: any) => {
-              const isOpen = String(openAccId) === String(acc.id);
-              const accNotifs = notifs.filter(n => n.accountId === acc.id);
-              const accPosted = accNotifs.filter(n => n.status === "posted").length;
+              const active = String(openAccId) === String(acc.id);
               return (
-                <div key={acc.id}>
-                  <div onClick={() => setOpenAccIdPersist(isOpen ? null : acc.id)}
-                    style={{display:"flex",alignItems:"center",background:isOpen?"#111827":"none",borderLeft:isOpen?`3px solid ${C_H.accent}`:"3px solid transparent",transition:"all 0.1s",cursor:"pointer"}}
-                    onMouseEnter={(e: any) => { if (!isOpen) e.currentTarget.style.background="#0F1117"; }}
-                    onMouseLeave={(e: any) => { if (!isOpen) e.currentTarget.style.background="none"; }}>
-                    <div style={{flex:1,padding:"10px 20px",minWidth:0}}>
-                      <div style={{fontSize:13,fontWeight:600,color:isOpen?C_H.accent:C_H.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                        {acc.redditUsername ? `u/${acc.redditUsername.replace(/^u\//,"")}` : acc.emailAddress}
-                      </div>
-                      {acc.redditUsername && <div style={{fontSize:11,color:C_H.dim,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acc.emailAddress}</div>}
+                <div key={acc.id} onClick={() => { setOpenAccIdPersist(acc.id); setTab("all"); }}
+                  style={{display:"flex",alignItems:"center",background:active?"#111827":"none",borderLeft:active?`3px solid ${C_H.accent}`:"3px solid transparent",transition:"all 0.1s",cursor:"pointer",padding:"11px 20px"}}
+                  onMouseEnter={(e: any) => { if (!active) e.currentTarget.style.background="#0F1117"; }}
+                  onMouseLeave={(e: any) => { if (!active) e.currentTarget.style.background="none"; }}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color:active?C_H.accent:C_H.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {acc.redditUsername ? `u/${acc.redditUsername.replace(/^u\//,"")}` : acc.emailAddress}
                     </div>
-                    <span style={{color:C_H.dim,fontSize:11,paddingRight:14}}>{isOpen?"▲":"▼"}</span>
+                    {acc.redditUsername && <div style={{fontSize:11,color:C_H.dim,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acc.emailAddress}</div>}
+                    <div style={{fontSize:10,color:active?`${C_H.accent}80`:C_H.dim,marginTop:2}}>{(acc.subreddits??[]).length} active</div>
                   </div>
-                  {isOpen && (
-                    <div style={{background:"#0A0D14",borderBottom:`1px solid ${C_H.border}20`}}>
-                      <div style={{display:"flex",gap:0,padding:"10px 20px 0"}}>
-                        {[{l:"Notified",v:accNotifs.length,c:C_H.sub},{l:"Posted",v:accPosted,c:C_H.green}].map((s: any) => (
-                          <div key={s.l} style={{flex:1}}>
-                            <div style={{fontSize:16,fontWeight:700,color:s.c}}>{s.v}</div>
-                            <div style={{fontSize:10,color:C_H.dim}}>{s.l}</div>
-                          </div>
-                        ))}
-                      </div>
-                      {acc.subreddits && acc.subreddits.length > 0 && (
-                        <div style={{padding:"10px 20px 8px"}}>
-                          <div style={{fontSize:10,color:C_H.dim,letterSpacing:"0.06em",marginBottom:7}}>SUBREDDITS</div>
-                          <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                            {acc.subreddits.map((s: string) => <span key={s} style={{background:C_H.surface,border:`1px solid ${C_H.border}`,color:C_H.sub,padding:"2px 8px",borderRadius:10,fontSize:10}}>r/{s}</span>)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               );
             })
           }
-          {accounts.length > 0 && (
-            <div style={{padding:"10px 20px"}}>
-              <button onClick={() => setShowManageAcc(true)}
-                style={{background:"none",border:`1px solid ${C_H.border}`,color:C_H.sub,cursor:"pointer",fontFamily:"inherit",fontSize:11,padding:"6px 14px",borderRadius:6,fontWeight:600,width:"100%"}}>
-                Manage Accounts
-              </button>
-            </div>
-          )}
         </div>
 
         <div style={{padding:"16px 20px",borderTop:`1px solid ${C_H.border}`}}>
@@ -1240,51 +1292,42 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
         </div>
       </div>
 
-      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{padding:"22px 32px 14px",borderBottom:`1px solid ${C_H.border}`,flexShrink:0}}>
-          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:14}}>
-            <div>
-              <div style={{fontSize:20,fontWeight:800,color:C_H.text}}>
-                {openAcc
-                  ? (openAcc.redditUsername ? `u/${openAcc.redditUsername.replace(/^u\//,"")}` : openAcc.emailAddress)
-                  : "All Notifications"}
-              </div>
-              {openAcc && openAcc.redditUsername && (
-                <div style={{fontSize:12,color:C_H.muted,marginTop:1}}>{openAcc.emailAddress}</div>
-              )}
-              <div style={{fontSize:12,color:C_H.muted,marginTop:3}}>
-                Click any post to open, generate a comment and mark as posted
-              </div>
+      {openAccId
+        ? <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            <div style={{background:C_H.surface,borderBottom:`1px solid ${C_H.border}`,display:"flex",flexShrink:0,padding:"0 32px"}}>
+              {[["notifications","Notifications"],["subreddits","Manage Subreddits"]].map(([key,label]) => {
+                const a = holderMainTab === key;
+                return (<button key={key} onClick={() => setHolderMainTab(key)} style={{background:"none",border:"none",borderBottom:a?`2px solid ${C_H.accent}`:"2px solid transparent",color:a?C_H.accent:C_H.dim,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:a?700:500,padding:"14px 18px",marginBottom:-1,transition:"color 0.12s"}}>{label}</button>);
+              })}
             </div>
-            <div style={{display:"flex",gap:8,flexShrink:0}}>
-              {["all","viewed","posted"].map(t => <button key={t} onClick={() => setTabPersist(t)} style={{background:tab===t?"#1C1400":"#161B26",color:tab===t?C_H.accent:C_H.sub,border:tab===t?`1px solid ${C_H.accent}40`:`1px solid ${C_H.border}`,borderRadius:7,padding:"8px 18px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:tab===t?700:500}}>{t} <span style={{opacity:0.8}}>({counts[t]??0})</span></button>)}
-            </div>
+            {holderMainTab === "notifications"
+              ? <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+                  <div style={{padding:"18px 32px 14px",borderBottom:`1px solid ${C_H.border}`,flexShrink:0}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                      <div>
+                        <div style={{fontSize:20,fontWeight:800,color:C_H.text}}>
+                          {openAcc ? (openAcc.redditUsername ? `u/${openAcc.redditUsername.replace(/^u\//,"")}` : openAcc.emailAddress) : "All Notifications"}
+                        </div>
+                        <div style={{fontSize:12,color:C_H.muted,marginTop:3}}>Click any post to open and take action.</div>
+                      </div>
+                      <div style={{display:"flex",gap:8,flexShrink:0}}>
+                        {["all","viewed","posted"].map(t => <button key={t} onClick={() => setTabPersist(t)} style={{background:tab===t?"#1C1400":"#161B26",color:tab===t?C_H.accent:C_H.sub,border:tab===t?`1px solid ${C_H.accent}40`:`1px solid ${C_H.border}`,borderRadius:7,padding:"8px 18px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:tab===t?700:500}}>{t} <span style={{opacity:0.8}}>({counts[t]??0})</span></button>)}
+                      </div>
+                    </div>
+                    <input style={{...inpH,padding:"8px 12px",fontSize:12}} placeholder="Search by post title or subreddit…" value={search} onChange={(e: any) => setSearch(e.target.value)}/>
+                  </div>
+                  <div style={{flex:1,overflowY:"auto",padding:"28px 32px"}}>
+                    <NotifListH notifs={filtered} onOpen={(id: any) => holderApi.getNotification(id).then(setPopup).catch(() => {})}/>
+                  </div>
+                </div>
+              : <ManageSubsPanelH account={openAcc} onUpdated={loadAccounts}/>
+            }
           </div>
-          <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-            <input
-              style={{...inpH,flex:1,minWidth:160,padding:"8px 12px",fontSize:12}}
-              placeholder="Search by post title or subreddit…"
-              value={search}
-              onChange={(e: any) => setSearch(e.target.value)}
-            />
-            <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap",alignItems:"center"}}>
-              {[{k:"all",l:"All time"},{k:"today",l:"Today"},{k:"week",l:"7d"},{k:"month",l:"30d"},{k:"custom",l:"Custom"}].map(({k,l}) => (
-                <button key={k} onClick={() => setTimeFilter(k)} style={{background:timeFilter===k?"#1C1400":"#161B26",color:timeFilter===k?C_H.accent:C_H.sub,border:timeFilter===k?`1px solid ${C_H.accent}40`:`1px solid ${C_H.border}`,borderRadius:7,padding:"8px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:timeFilter===k?700:500,whiteSpace:"nowrap"}}>{l}</button>
-              ))}
-              {timeFilter === "custom" && (
-                <>
-                  <input type="date" value={fromDate} onChange={(e: any) => setFromDate(e.target.value)} style={{...inpH,padding:"7px 10px",fontSize:11,colorScheme:"dark"}}/>
-                  <span style={{fontSize:11,color:C_H.dim}}>–</span>
-                  <input type="date" value={toDate} onChange={(e: any) => setToDate(e.target.value)} style={{...inpH,padding:"7px 10px",fontSize:11,colorScheme:"dark"}}/>
-                </>
-              )}
-            </div>
+        : <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12,color:C_H.dim}}>
+            <div style={{fontSize:32}}>👤</div>
+            <div style={{fontSize:14}}>Select an account from the sidebar</div>
           </div>
-        </div>
-        <div style={{flex:1,overflowY:"auto",padding:"28px 32px"}}>
-          <NotifListH notifs={filtered} onOpen={(id: any) => holderApi.getNotification(id).then(setPopup).catch(() => {})}/>
-        </div>
-      </div>
+      }
     </div>
   );
 }
@@ -1321,12 +1364,13 @@ export default function App() {
 
     if (urlToken) {
       localStorage.setItem("token", urlToken);
-      if (urlPostId) {
-        setInitialPostId(urlPostId);
-        window.history.replaceState({}, "", "/");
-      } else {
-        window.history.replaceState({}, "", "/");
-      }
+    }
+    if (urlPostId) {
+      // Write to sessionStorage immediately — dashboards read it directly on mount
+      sessionStorage.setItem("pending_post_id", urlPostId);
+    }
+    if (urlToken || urlPostId) {
+      window.history.replaceState({}, "", "/");
     }
 
     // Migrate old key "main_token" → "token" (one-time migration from old CRA app)
@@ -1425,7 +1469,7 @@ export default function App() {
   }
 
   if (role === "monitor") {
-    return <MonitorApp user={user} onLogout={handleLogout} />;
+    return <MonitorApp user={user} onLogout={handleLogout} initialPostId={initialPostId} />;
   }
 
   if (role === "holder") {

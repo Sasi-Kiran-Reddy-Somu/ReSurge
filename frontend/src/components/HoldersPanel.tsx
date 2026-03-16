@@ -80,7 +80,7 @@ export default function HoldersPanel({ onSelectHolder }: { onSelectHolder?: (h: 
   return (
     <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
       <div style={{ padding:"18px 28px", borderBottom:"1px solid #1A1D2E", display:"flex", alignItems:"center", gap:16, flexShrink:0 }}>
-        <span style={{ fontFamily:"'IBM Plex Sans',sans-serif", fontWeight:700, fontSize:15 }}>👤 Holders</span>
+        <span style={{ fontFamily:"'IBM Plex Sans',sans-serif", fontWeight:700, fontSize:15 }}>Holders</span>
         <input
           style={{ ...S.input, maxWidth:320 }}
           placeholder="Search by name or email..."

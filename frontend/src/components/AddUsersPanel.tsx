@@ -17,7 +17,13 @@ async function req(method: string, path: string, body?: any) {
   const text = await r.text();
   let json: any;
   try { json = JSON.parse(text); } catch { throw new Error(`Server returned non-JSON (${r.status}): ${text.slice(0, 200)}`); }
-  if (!r.ok) throw new Error(json.error ?? `Request failed (${r.status})`);
+  if (r.status === 401) { localStorage.removeItem("token"); localStorage.removeItem("user_data"); window.location.reload(); throw new Error("Session expired"); }
+  if (!r.ok) {
+    const err: any = new Error(json.error ?? `Request failed (${r.status})`);
+    err.code = json.code;
+    err.existingRole = json.existingRole;
+    throw err;
+  }
   return json;
 }
 
@@ -81,6 +87,8 @@ function SettingsDropdown({ user, onRoleChange, onDelete }: { user: any; onRoleC
   );
 }
 
+type AlertModal = { title: string; message: string; action?: { label: string; onClick: () => void } };
+
 export default function UsersPanel() {
   const [tab, setTab] = useState<"invite" | "current">("invite");
 
@@ -92,6 +100,7 @@ export default function UsersPanel() {
   const [success,  setSuccess]  = useState("");
   const [busy,     setBusy]     = useState(false);
   const [delBusy,  setDelBusy]  = useState<string | null>(null);
+  const [modal,    setModal]    = useState<AlertModal | null>(null);
 
   // Current users state
   const [allUsers,    setAllUsers]    = useState<any[]>([]);
@@ -117,12 +126,23 @@ export default function UsersPanel() {
     try {
       await req("POST", "/admin/invites", { email: email.trim(), role });
       setEmail("");
-      setSuccess(`Invite sent to ${email.trim()} — they'll receive an email and can sign in as ${ROLE_LABELS[role]}`);
+      setSuccess(`Invite sent to ${email.trim()} as ${ROLE_LABELS[role]}`);
       loadInvites();
       setTimeout(() => setSuccess(""), 5000);
-    } catch (e: any) {
-      setErr(e.message);
-      window.alert("Invite failed: " + e.message);
+    } catch (err: any) {
+      if (err.code === "USER_EXISTS_SAME_ROLE") {
+        setModal({ title: "User already exists", message: `${email.trim()} is already a ${ROLE_LABELS[role] ?? role}.` });
+      } else if (err.code === "USER_EXISTS_DIFF_ROLE") {
+        setModal({
+          title: "User already exists",
+          message: `${email.trim()} is already signed up as ${ROLE_LABELS[err.existingRole] ?? err.existingRole}. Use "Change Role" in the Current Users tab to update their role.`,
+          action: { label: "Go to Current Users", onClick: () => { setTab("current"); setModal(null); } },
+        });
+      } else if (err.code === "INVITE_EXISTS") {
+        setModal({ title: "Invite already sent", message: `An invite was already sent to ${email.trim()} as ${ROLE_LABELS[err.existingRole] ?? err.existingRole}. You can remove it from the pending list and resend if needed.` });
+      } else {
+        setErr(err.message);
+      }
     } finally {
       setBusy(false);
     }
@@ -170,6 +190,24 @@ export default function UsersPanel() {
 
   return (
     <div style={{ flex:1, overflowY:"auto", padding:"28px 36px", fontFamily:"'IBM Plex Sans',sans-serif" }}>
+      {modal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:500, padding:24 }}>
+          <div style={{ background:"#0F1117", border:`1px solid ${C.border}`, borderRadius:14, padding:32, maxWidth:420, width:"100%" }}>
+            <div style={{ fontSize:16, fontWeight:800, color:C.text, marginBottom:12 }}>{modal.title}</div>
+            <div style={{ fontSize:14, color:C.sub, lineHeight:1.7, marginBottom:24 }}>{modal.message}</div>
+            <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+              {modal.action && (
+                <button onClick={modal.action.onClick} style={{ background:C.purple, border:"none", borderRadius:8, padding:"10px 20px", color:"#fff", fontWeight:700, cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>
+                  {modal.action.label}
+                </button>
+              )}
+              <button onClick={() => setModal(null)} style={{ background:"#1F2937", border:"none", borderRadius:8, padding:"10px 20px", color:C.sub, fontWeight:600, cursor:"pointer", fontFamily:"inherit", fontSize:13 }}>
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ maxWidth:760 }}>
         <div style={{ marginBottom:24 }}>
           <div style={{ fontSize:10, color:C.muted, letterSpacing:"1px", fontWeight:600, marginBottom:6 }}>USERS</div>
