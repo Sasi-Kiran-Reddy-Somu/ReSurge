@@ -145,6 +145,22 @@ holderRoutes.put("/accounts/:id", async (c) => {
   return c.json(updated);
 });
 
+// GET /api/holder/pause-status
+holderRoutes.get("/pause-status", async (c) => {
+  const userId = c.get("userId") as string;
+  const [user] = await db.select({ notificationsPausedUntil: users.notificationsPausedUntil }).from(users).where(eq(users.id, userId)).limit(1);
+  return c.json({ pausedUntil: user?.notificationsPausedUntil ?? null });
+});
+
+// PUT /api/holder/pause-notifications — { hours: number | null (null = resume) }
+holderRoutes.put("/pause-notifications", async (c) => {
+  const userId = c.get("userId") as string;
+  const { hours } = await c.req.json();
+  const pausedUntil = hours ? Date.now() + hours * 60 * 60 * 1000 : null;
+  await db.update(users).set({ notificationsPausedUntil: pausedUntil }).where(eq(users.id, userId));
+  return c.json({ ok: true, pausedUntil });
+});
+
 // DELETE /api/holder/accounts/:id
 holderRoutes.delete("/accounts/:id", async (c) => {
   const userId    = c.get("userId") as string;

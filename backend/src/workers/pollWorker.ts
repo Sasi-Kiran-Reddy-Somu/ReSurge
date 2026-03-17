@@ -156,6 +156,12 @@ export function createPollWorker() {
                 accountId: account.id,
               }).returning();
 
+              // Skip email if user has paused notifications
+              if (user.notificationsPausedUntil && user.notificationsPausedUntil > now) {
+                console.log(`  Notifications paused for ${user.email} (${Math.round((user.notificationsPausedUntil - now) / 60000)}m left)`);
+                continue;
+              }
+
               const notifRole = userRoles.includes("monitor") ? "monitor" : "holder";
               const token = signToken({ userId: user.id, role: notifRole });
               try {

@@ -359,6 +359,67 @@ function ManageSubredditsPanel({account,onUpdated}){
   );
 }
 
+function pauseTimeLeft(until){
+  const ms=until-Date.now();if(ms<=0)return null;
+  const h=Math.floor(ms/3600000);const m=Math.floor((ms%3600000)/60000);
+  return h>0?`${h}h ${m}m`:`${m}m`;
+}
+
+function PauseModal({isPaused,pausedUntil,onClose,onPause,onResume}){
+  const [hours,setHours]=useState(1);const [editing,setEditing]=useState(false);const [inputVal,setInputVal]=useState("1");const [busy,setBusy]=useState(false);
+  const timeLeft=isPaused&&pausedUntil?pauseTimeLeft(pausedUntil):null;
+  function clamp(v){return Math.min(16,Math.max(1,Math.round(v)));}
+  function dec(){setHours(h=>clamp(h-1));}
+  function inc(){setHours(h=>clamp(h+1));}
+  function startEdit(){setInputVal(String(hours));setEditing(true);}
+  function commitEdit(){const v=parseInt(inputVal,10);if(!isNaN(v))setHours(clamp(v));setEditing(false);}
+  async function handlePause(){setBusy(true);try{await onPause(hours);onClose();}catch(e){alert(e.message);}finally{setBusy(false);}}
+  async function handleResume(){setBusy(true);try{await onResume();onClose();}catch(e){alert(e.message);}finally{setBusy(false);}}
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500}}>
+      <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:14,width:"min(380px,96vw)",padding:28}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{fontSize:15,fontWeight:800,color:C.text}}>Pause Notifications</div>
+          <button onClick={onClose} style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontSize:18,borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+        </div>
+        {isPaused&&timeLeft?(
+          <>
+            <div style={{background:"#0A1A10",border:`1px solid #065F46`,borderRadius:10,padding:"16px 18px",marginBottom:20,textAlign:"center"}}>
+              <div style={{fontSize:11,color:C.green,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>CURRENTLY PAUSED</div>
+              <div style={{fontSize:28,fontWeight:800,color:C.text,marginBottom:4}}>{timeLeft}</div>
+              <div style={{fontSize:12,color:C.muted}}>remaining</div>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={handleResume} disabled={busy} style={{...btn(C.green,"#000"),flex:1,padding:"11px"}}>{busy?"Resuming...":"Resume Now"}</button>
+              <button onClick={onClose} style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontFamily:"inherit",fontSize:13,padding:"11px 16px",borderRadius:7}}>Close</button>
+            </div>
+          </>
+        ):(
+          <>
+            <div style={{fontSize:13,color:C.muted,marginBottom:20}}>Pause email notifications for how long?</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:16,marginBottom:24}}>
+              <button onClick={dec} style={{width:40,height:40,borderRadius:8,background:C.surface,border:`1px solid ${C.border}`,color:C.text,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",lineHeight:1}}>−</button>
+              {editing?(
+                <input autoFocus value={inputVal} onChange={e=>setInputVal(e.target.value)} onBlur={commitEdit} onKeyDown={e=>{if(e.key==="Enter")commitEdit();if(e.key==="Escape")setEditing(false);}} style={{width:80,textAlign:"center",background:C.surface,border:`1px solid ${C.accent}`,borderRadius:8,padding:"8px 0",color:C.text,fontSize:22,fontWeight:700,fontFamily:"inherit",outline:"none"}}/>
+              ):(
+                <div onDoubleClick={startEdit} title="Double-click to type a value" style={{width:80,textAlign:"center",fontSize:22,fontWeight:800,color:C.text,cursor:"default",userSelect:"none",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 0"}}>
+                  {hours}<span style={{fontSize:13,fontWeight:500,color:C.muted,marginLeft:4}}>hr</span>
+                </div>
+              )}
+              <button onClick={inc} style={{width:40,height:40,borderRadius:8,background:C.surface,border:`1px solid ${C.border}`,color:C.text,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",lineHeight:1}}>+</button>
+            </div>
+            <div style={{fontSize:11,color:C.muted,textAlign:"center",marginBottom:20}}>Max 16 hours · Double-click the number to type a custom value</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={handlePause} disabled={busy} style={{...btn(C.accent,"#000"),flex:1,padding:"11px"}}>{busy?"Pausing...":"Done"}</button>
+              <button onClick={onClose} style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontFamily:"inherit",fontSize:13,padding:"11px 16px",borderRadius:7}}>Cancel</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({user,onLogout}){
   const [notifs,setNotifs]=useState([]);
   const [accounts,setAccounts]=useState([]);
@@ -373,11 +434,23 @@ function Dashboard({user,onLogout}){
   const [showAddAcc,setShowAddAcc]=useState(false);
   const [showManageAcc,setShowManageAcc]=useState(false);
   const [delAccBusy,setDelAccBusy]=useState(null);
+  const [pausedUntil,setPausedUntil]=useState(null);
+  const [showPauseModal,setShowPauseModal]=useState(false);
   const commentCache=useRef({});
+
+  // Ticker to refresh time-based displays every 30s
+  const [,setTick]=useState(0);
+  useEffect(()=>{const id=setInterval(()=>setTick(t=>t+1),30000);return()=>clearInterval(id);},[]);
+
+  const isPaused=pausedUntil&&pausedUntil>Date.now();
+
+  async function pauseNotifications(hours){const d=await api.pauseNotifications(hours);setPausedUntil(d.pausedUntil);}
+  async function resumeNotifications(){await api.resumeNotifications();setPausedUntil(null);}
 
   useEffect(()=>{
     load();
     loadAccounts();
+    api.getPauseStatus().then(d=>setPausedUntil(d.pausedUntil??null)).catch(()=>{});
     const p=new URLSearchParams(window.location.search);
     const nId=p.get("postId");
     if(nId){
@@ -486,10 +559,20 @@ function Dashboard({user,onLogout}){
           }
         </div>
 
-        <div style={{padding:"16px 20px",borderTop:`1px solid ${C.border}`}}>
+        <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
+          <button onClick={()=>setShowPauseModal(true)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:isPaused?"#0A1A10":"none",border:`1px solid ${isPaused?"#065F46":C.border}`,borderRadius:7,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",marginBottom:8,transition:"all 0.15s"}}
+            onMouseEnter={e=>{if(!isPaused)e.currentTarget.style.background="#111318";}}
+            onMouseLeave={e=>{if(!isPaused)e.currentTarget.style.background="none";}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={isPaused?C.green:C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>{isPaused&&<line x1="1" y1="1" x2="23" y2="23"/>}</svg>
+            <span style={{fontSize:12,color:isPaused?C.green:C.sub,flex:1,textAlign:"left"}}>
+              {isPaused?`Paused · ${pauseTimeLeft(pausedUntil)||"resuming"}` : "Pause Notifications"}
+            </span>
+          </button>
           <button onClick={onLogout} style={{background:"none",border:"none",color:C.sub,cursor:"pointer",fontFamily:"inherit",fontSize:13,padding:"6px 0"}}>→ Logout</button>
         </div>
       </div>
+
+      {showPauseModal&&<PauseModal isPaused={!!isPaused} pausedUntil={pausedUntil} onClose={()=>setShowPauseModal(false)} onPause={pauseNotifications} onResume={resumeNotifications}/>}
 
       {/* Main */}
       {openAcc

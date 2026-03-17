@@ -32,4 +32,7 @@ export const api = {
   addAccount:          (data)           => req("POST", "/holder/accounts", data),
   deleteAccount:       (id)             => req("DELETE", `/holder/accounts/${id}`),
   updateAccount:       (id, data)       => req("PUT",    `/holder/accounts/${id}`, data),
+  getPauseStatus:      ()               => req("GET",  "/holder/pause-status"),
+  pauseNotifications:  (hours)          => req("PUT",  "/holder/pause-notifications", { hours }),
+  resumeNotifications: ()               => req("PUT",  "/holder/pause-notifications", { hours: null }),
 };

@@ -19,36 +19,33 @@ export async function fetchNewPostsMulti(
     chunks.push(subreddits.slice(i, i + CHUNK_SIZE));
   }
 
-  const results: RedditPost[] = [];
-
-  for (const chunk of chunks) {
+  async function fetchChunk(chunk: string[]): Promise<RedditPost[]> {
     const joined = chunk.join("+");
     const url = `https://www.reddit.com/r/${joined}/new.json?limit=${limit}`;
 
-    let success = false;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const res = await fetch(url, {
           headers: { "User-Agent": USER_AGENT, "Accept": "application/json" },
         });
         if (res.status === 429) throw new Error("Rate limited by Reddit");
-        if (!res.ok) { console.warn(`[Fetcher] Chunk ${joined} HTTP ${res.status}`); break; }
+        if (!res.ok) { console.warn(`[Fetcher] Chunk ${joined} HTTP ${res.status}`); return []; }
 
         const data = await res.json() as {
           data?: { children?: Array<{ data: RedditPost }> }
         };
-        results.push(...(data?.data?.children ?? []).map((c) => c.data));
-        success = true;
-        break;
+        return (data?.data?.children ?? []).map((c) => c.data);
       } catch (err) {
         console.warn(`[Fetcher] Chunk ${joined} attempt ${attempt} failed:`, (err as Error).message);
         if (attempt < 3) await new Promise(r => setTimeout(r, 1000 * attempt));
       }
     }
-    if (!success) console.warn(`[Fetcher] Chunk ${joined} skipped after 3 attempts`);
+    console.warn(`[Fetcher] Chunk ${joined} skipped after 3 attempts`);
+    return [];
   }
 
-  return results;
+  const chunkResults = await Promise.all(chunks.map(fetchChunk));
+  return chunkResults.flat();
 }
 
 /**
@@ -66,7 +63,7 @@ export async function refreshPostEngagement(
     chunks.push(redditIds.slice(i, i + 100));
   }
 
-  for (const chunk of chunks) {
+  await Promise.all(chunks.map(async (chunk) => {
     const ids = chunk.map((id) => `t3_${id}`).join(",");
     const url = `https://www.reddit.com/api/info.json?id=${ids}`;
 
@@ -76,7 +73,7 @@ export async function refreshPostEngagement(
       });
       if (!res.ok) {
         console.warn(`[Fetcher] api/info.json HTTP ${res.status}`);
-        continue;
+        return;
       }
 
       const data = await res.json() as {
@@ -94,7 +91,7 @@ export async function refreshPostEngagement(
     } catch {
       // Silently continue on partial failures
     }
-  }
+  }));
 
   return result;
 }

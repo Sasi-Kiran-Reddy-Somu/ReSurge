@@ -83,8 +83,9 @@ export const users = pgTable("users", {
   role:               text("role").notNull(), // primary/display role
   roles:              text("roles").array().notNull().default([]), // all roles this account can use
   phone:              text("phone"),
-  adminAcknowledged:  boolean("admin_acknowledged").notNull().default(true), // false for self-signups until admin views
-  createdAt:          timestamp("created_at").notNull().defaultNow(),
+  adminAcknowledged:        boolean("admin_acknowledged").notNull().default(true),
+  notificationsPausedUntil: bigint("notifications_paused_until", { mode: "number" }),
+  createdAt:                timestamp("created_at").notNull().defaultNow(),
 });
 
 // ─── holder_accounts (email/reddit accounts a holder manages) ──

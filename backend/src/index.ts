@@ -86,6 +86,16 @@ async function bootstrap() {
     console.error("invited_users table error:", (err as Error).message);
   }
 
+  // Ensure notifications_paused_until column exists on users
+  try {
+    await db.execute(sql`
+      ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "notifications_paused_until" bigint
+    `);
+    console.log("✓ users.notifications_paused_until column ready");
+  } catch (err) {
+    console.error("notifications_paused_until column error:", (err as Error).message);
+  }
+
   // Ensure threshold_edits table exists
   try {
     await db.execute(sql`
@@ -103,10 +113,13 @@ async function bootstrap() {
     console.error("threshold_edits table error:", (err as Error).message);
   }
 
-  createPollWorker();
-  console.log("✓ Poll worker started");
-
-  await ensureGlobalPollScheduled();
+  if (process.env.DISABLE_POLL_WORKER === "true") {
+    console.log("⚠ Poll worker disabled (DISABLE_POLL_WORKER=true) — running API only");
+  } else {
+    createPollWorker();
+    console.log("✓ Poll worker started");
+    await ensureGlobalPollScheduled();
+  }
 
   const port = parseInt(process.env.PORT ?? "3001");
   serve({ fetch: app.fetch, port }, () => {

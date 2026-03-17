@@ -534,6 +534,67 @@ function ManageSubredditsPanel({account,onUpdated}){
 }
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
+function pauseTimeLeft(until){
+  const ms=until-Date.now();if(ms<=0)return null;
+  const h=Math.floor(ms/3600000);const m=Math.floor((ms%3600000)/60000);
+  return h>0?`${h}h ${m}m`:`${m}m`;
+}
+
+function PauseModal({isPaused,pausedUntil,onClose,onPause,onResume}){
+  const [hours,setHours]=useState(1);const [editing,setEditing]=useState(false);const [inputVal,setInputVal]=useState("1");const [busy,setBusy]=useState(false);
+  const timeLeft=isPaused&&pausedUntil?pauseTimeLeft(pausedUntil):null;
+  function clamp(v){return Math.min(16,Math.max(1,Math.round(v)));}
+  function dec(){setHours(h=>clamp(h-1));}
+  function inc(){setHours(h=>clamp(h+1));}
+  function startEdit(){setInputVal(String(hours));setEditing(true);}
+  function commitEdit(){const v=parseInt(inputVal,10);if(!isNaN(v))setHours(clamp(v));setEditing(false);}
+  async function handlePause(){setBusy(true);try{await onPause(hours);onClose();}catch(e){alert(e.message);}finally{setBusy(false);}}
+  async function handleResume(){setBusy(true);try{await onResume();onClose();}catch(e){alert(e.message);}finally{setBusy(false);}}
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500}}>
+      <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:14,width:"min(380px,96vw)",padding:28}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{fontSize:15,fontWeight:800,color:C.text}}>Pause Notifications</div>
+          <button onClick={onClose} style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontSize:18,borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+        </div>
+        {isPaused&&timeLeft?(
+          <>
+            <div style={{background:"#0A1A10",border:`1px solid #065F46`,borderRadius:10,padding:"16px 18px",marginBottom:20,textAlign:"center"}}>
+              <div style={{fontSize:11,color:C.green,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>CURRENTLY PAUSED</div>
+              <div style={{fontSize:28,fontWeight:800,color:C.text,marginBottom:4}}>{timeLeft}</div>
+              <div style={{fontSize:12,color:C.muted}}>remaining</div>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={handleResume} disabled={busy} style={{...btn(C.green,"#000"),flex:1,padding:"11px"}}>{busy?"Resuming...":"Resume Now"}</button>
+              <button onClick={onClose} style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontFamily:"inherit",fontSize:13,padding:"11px 16px",borderRadius:7}}>Close</button>
+            </div>
+          </>
+        ):(
+          <>
+            <div style={{fontSize:13,color:C.muted,marginBottom:20}}>Pause email notifications for how long?</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:16,marginBottom:24}}>
+              <button onClick={dec} style={{width:40,height:40,borderRadius:8,background:C.surface,border:`1px solid ${C.border}`,color:C.text,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",lineHeight:1}}>−</button>
+              {editing?(
+                <input autoFocus value={inputVal} onChange={e=>setInputVal(e.target.value)} onBlur={commitEdit} onKeyDown={e=>{if(e.key==="Enter")commitEdit();if(e.key==="Escape")setEditing(false);}} style={{width:80,textAlign:"center",background:C.surface,border:`1px solid ${C.accent}`,borderRadius:8,padding:"8px 0",color:C.text,fontSize:22,fontWeight:700,fontFamily:"inherit",outline:"none"}}/>
+              ):(
+                <div onDoubleClick={startEdit} title="Double-click to type a value" style={{width:80,textAlign:"center",fontSize:22,fontWeight:800,color:C.text,cursor:"default",userSelect:"none",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 0"}}>
+                  {hours}<span style={{fontSize:13,fontWeight:500,color:C.muted,marginLeft:4}}>hr</span>
+                </div>
+              )}
+              <button onClick={inc} style={{width:40,height:40,borderRadius:8,background:C.surface,border:`1px solid ${C.border}`,color:C.text,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",lineHeight:1}}>+</button>
+            </div>
+            <div style={{fontSize:11,color:C.muted,textAlign:"center",marginBottom:20}}>Max 16 hours · Double-click the number to type a custom value</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={handlePause} disabled={busy} style={{...btn(C.accent),flex:1,padding:"11px"}}>{busy?"Pausing...":"Done"}</button>
+              <button onClick={onClose} style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontFamily:"inherit",fontSize:13,padding:"11px 16px",borderRadius:7}}>Cancel</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({user,onLogout}){
   const [section,setSection]=useState("accounts"); // "accounts" | "holders"
   const [mainTab,setMainTab]=useState("notifications"); // "notifications" | "subreddits"
@@ -544,8 +605,16 @@ function Dashboard({user,onLogout}){
   const [holders,setHolders]=useState([]);
   const [selectedHolder,setSelectedHolder]=useState(null);
   const [showManageAcc,setShowManageAcc]=useState(false);
+  const [pausedUntil,setPausedUntil]=useState(null);
+  const [showPauseModal,setShowPauseModal]=useState(false);
 
-  useEffect(()=>{loadAccounts();req("GET","/monitor/holders").then(setHolders).catch(()=>{});},[]);
+  const [,setTick]=useState(0);
+  useEffect(()=>{const id=setInterval(()=>setTick(t=>t+1),30000);return()=>clearInterval(id);},[]);
+  const isPaused=pausedUntil&&pausedUntil>Date.now();
+  async function pauseNotifications(hours){const d=await req("PUT","/holder/pause-notifications",{hours});setPausedUntil(d.pausedUntil);}
+  async function resumeNotifications(){await req("PUT","/holder/pause-notifications",{hours:null});setPausedUntil(null);}
+
+  useEffect(()=>{loadAccounts();req("GET","/monitor/holders").then(setHolders).catch(()=>{});req("GET","/holder/pause-status").then(d=>setPausedUntil(d.pausedUntil??null)).catch(()=>{});},[]);
 
   function loadAccounts(){
     req("GET","/holder/accounts").then(accs=>{setAccounts(accs);if(accs.length>0)setOpenAccId(id=>id||accs[0].id);}).catch(()=>{});
@@ -657,6 +726,19 @@ function Dashboard({user,onLogout}){
             <span style={{fontSize:12,color:section==="holders"?C.accent:"#9CA3AF",fontWeight:section==="holders"?600:400,flex:1}}>Holders</span>
             {holders.length>0&&<span style={{fontSize:10,color:"#6B7280"}}>{holders.length}</span>}
           </div>
+          <div onClick={()=>setShowPauseModal(true)}
+            style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",borderRadius:7,cursor:"pointer",marginBottom:2,
+              background:isPaused?"#0A1A10":"transparent",
+              borderLeft:`2px solid ${isPaused?C.green:"transparent"}`,transition:"background 0.12s"}}
+            onMouseEnter={e=>{if(!isPaused)e.currentTarget.style.background="#111318";}}
+            onMouseLeave={e=>{if(!isPaused)e.currentTarget.style.background=isPaused?"#0A1A10":"transparent";}}>
+            <span style={{width:20,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:isPaused?C.green:"#6B7280"}}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            </span>
+            <span style={{fontSize:12,color:isPaused?C.green:"#9CA3AF",flex:1}}>
+              {isPaused?`Paused · ${pauseTimeLeft(pausedUntil)||"resuming"}`:"Pause Notifications"}
+            </span>
+          </div>
           <div onClick={onLogout} style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",borderRadius:7,cursor:"pointer"}}
             onMouseEnter={e=>e.currentTarget.style.background="#111318"}
             onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -667,6 +749,8 @@ function Dashboard({user,onLogout}){
           </div>
         </div>
       </div>
+
+      {showPauseModal&&<PauseModal isPaused={!!isPaused} pausedUntil={pausedUntil} onClose={()=>setShowPauseModal(false)} onPause={pauseNotifications} onResume={resumeNotifications}/>}
 
       {/* Main content */}
       {section==="accounts"
