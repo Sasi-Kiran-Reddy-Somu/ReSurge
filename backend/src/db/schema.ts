@@ -138,6 +138,16 @@ export const invitedUsers = pgTable("invited_users", {
   invitedAt: timestamp("invited_at").notNull().defaultNow(),
 });
 
+// ─── threshold_edits (audit log of slider changes) ────────────
+export const thresholdEdits = pgTable("threshold_edits", {
+  id:        uuid("id").primaryKey().defaultRandom(),
+  subreddit: text("subreddit"),   // null = global
+  before:    text("before").notNull(),  // JSON snapshot
+  after:     text("after").notNull(),   // JSON snapshot
+  note:      text("note"),
+  editedAt:  timestamp("edited_at").notNull().defaultNow(),
+});
+
 export type DbSubreddit          = typeof subreddits.$inferSelect;
 export type DbPost               = typeof posts.$inferSelect;
 export type DbThresholds         = typeof thresholds.$inferSelect;
@@ -145,3 +155,4 @@ export type DbGeneratedComment   = typeof generatedComments.$inferSelect;
 export type DbUser               = typeof users.$inferSelect;
 export type DbNotification       = typeof notifications.$inferSelect;
 export type DbInvitedUser        = typeof invitedUsers.$inferSelect;
+export type DbThresholdEdit      = typeof thresholdEdits.$inferSelect;

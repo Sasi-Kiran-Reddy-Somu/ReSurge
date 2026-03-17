@@ -7,7 +7,9 @@ import StackModal   from "./components/StackModal";
 import MonitorPanel     from "./components/MonitorPanel";
 import HoldersPanel     from "./components/HoldersPanel";
 import AllNotifications from "./components/AllNotifications";
-import PostHistory      from "./components/PostHistory";
+import PostHistory           from "./components/PostHistory";
+import ThresholdEditHistory  from "./components/ThresholdEditHistory";
+import { api }               from "./utils/api";
 import SubredditsPanel  from "./components/SubredditsPanel";
 import AlertsPanel     from "./components/AlertsPanel";
 import AddUsersPanel   from "./components/AddUsersPanel";
@@ -105,8 +107,9 @@ function LoginGate({ onAuth }: { onAuth: (token: string, user: any, isNewSignup:
       <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:60, borderRight:"1px solid #1F2937" }}>
         <div style={{ width:72, height:72, background:"#FF4500", borderRadius:18, display:"flex", alignItems:"center", justifyContent:"center", fontSize:26, fontWeight:800, color:"#fff", marginBottom:32 }}>r/</div>
         <div style={{ fontSize:48, fontWeight:800, color:"#F9FAFB", letterSpacing:"-0.03em", marginBottom:14 }}>ReSurge</div>
-        <div style={{ fontSize:16, color:"#6B7280", maxWidth:340, textAlign:"center", lineHeight:1.7 }}>
-          Reddit viral post tracker — catch trending posts before they blow up, then generate and post AI comments in one click.
+        <div style={{ maxWidth:340, textAlign:"center" }}>
+          <div style={{ fontSize:16, color:"#6B7280" }}>Reddit viral post tracker and comment generator</div>
+          <div style={{ fontSize:14, color:"#4B5563", marginTop:8, lineHeight:1.7 }}>Catch trending posts before they blow up, then generate and post AI comments in one click.</div>
         </div>
       </div>
       {/* Right: Sign-in */}
@@ -130,7 +133,7 @@ function LoginGate({ onAuth }: { onAuth: (token: string, user: any, isNewSignup:
 // ─────────────────────────────────────────────────────────────
 function MainApp({ onLogout }: { onLogout: () => void }) {
   const [view,           setView]           = useState(() => sessionStorage.getItem("main_view") || "notifications");
-  const [showHistory,    setShowHistory]    = useState(false);
+  const [historyView,    setHistoryView]    = useState<null|"notifications"|"edits">(null);
   const [toast,          setToast]          = useState<any>(null);
   const [selectedHolder, setSelectedHolder] = useState<any>(null);
   const [alertCount,    setAlertCount]    = useState(0);
@@ -180,7 +183,7 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
     <div style={{ display:"flex", height:"100vh", overflow:"hidden" }}>
       <Sidebar
         subreddits={subreddits} activeTab={activeTab}
-        onSwitch={(name: string) => { changeView("tracker"); setShowHistory(false); switchTab(name); }}
+        onSwitch={(name: string) => { changeView("tracker"); setHistoryView(null); switchTab(name); }}
         onAdd={addSubreddit}
         stackCounts={stackCounts} countdown={countdown} lastRefresh={lastRefresh}
         view={view}
@@ -229,16 +232,27 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
                     );
                   })}
                   <button
-                    onClick={() => setShowHistory(h => !h)}
-                    style={{ background: showHistory ? "#1A2A40" : "#0F1117", color: showHistory ? "#93C5FD" : "#9CA3AF", border: showHistory ? "1px solid #3B82F640" : "1px solid #374151", borderRadius: 8, padding: "6px 14px", fontSize: 11, fontWeight: showHistory ? 700 : 500, cursor: "pointer", fontFamily: "inherit" }}>
-                    {showHistory ? "← Feed" : "History"}
+                    onClick={() => setHistoryView(v => v === "notifications" ? null : "notifications")}
+                    style={{ background: historyView === "notifications" ? "#1A2A40" : "#0F1117", color: historyView === "notifications" ? "#93C5FD" : "#9CA3AF", border: historyView === "notifications" ? "1px solid #3B82F640" : "1px solid #374151", borderRadius: 8, padding: "6px 14px", fontSize: 11, fontWeight: historyView === "notifications" ? 700 : 500, cursor: "pointer", fontFamily: "inherit" }}>
+                    {historyView === "notifications" ? "← Feed" : "Notification History"}
+                  </button>
+                  <button
+                    onClick={() => setHistoryView(v => v === "edits" ? null : "edits")}
+                    style={{ background: historyView === "edits" ? "#1C1400" : "#0F1117", color: historyView === "edits" ? "#F59E0B" : "#9CA3AF", border: historyView === "edits" ? "1px solid #78350F" : "1px solid #374151", borderRadius: 8, padding: "6px 14px", fontSize: 11, fontWeight: historyView === "edits" ? 700 : 500, cursor: "pointer", fontFamily: "inherit" }}>
+                    {historyView === "edits" ? "← Feed" : "Edit History"}
                   </button>
                 </div>
               </div>
-              <SliderPanel key={activeTab} thresholds={thresholds} onSave={saveThresholds} subreddit={activeTab} />
+              <SliderPanel key={activeTab} thresholds={thresholds} onSave={saveThresholds} subreddit={activeTab}
+                onEditSaved={({ before, after, note }: any) => {
+                  api.saveThresholdEdit({ subreddit: activeTab, before, after, note }).catch(() => {});
+                }}
+              />
             </div>
-            {showHistory
+            {historyView === "notifications"
               ? <PostHistory subreddit={activeTab} />
+              : historyView === "edits"
+              ? <ThresholdEditHistory subreddit={activeTab} />
               : <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
                     <span style={{ fontFamily:"'IBM Plex Sans',sans-serif", fontWeight:700, fontSize:15 }}>🚨 Stack 3 — Viral Alert Queue</span>
@@ -662,6 +676,117 @@ function ManageSubsPanelM({ account, onUpdated }: any) {
   );
 }
 
+const ONBOARDING_STEPS = [
+  {
+    title: "Welcome to ReSurge",
+    icon: "👋",
+    content: (email: string) => (
+      <div>
+        <p style={{ margin: "0 0 12px" }}>ReSurge watches Reddit for viral posts in your subreddits and alerts you the moment they start blowing up, so you can jump in early with an AI-generated comment.</p>
+        <p style={{ margin: 0 }}>Alerts will be sent to <strong style={{ color: "#F9FAFB" }}>{email}</strong>, that's your login email.</p>
+      </div>
+    ),
+  },
+  {
+    title: "Add your Reddit account",
+    icon: "➕",
+    content: () => (
+      <div>
+        <p style={{ margin: "0 0 12px" }}>In the left sidebar under <strong style={{ color: "#F9FAFB" }}>MY ACCOUNTS</strong>, click the <strong style={{ color: "#A78BFA" }}>+ Add</strong> button.</p>
+        <p style={{ margin: "0 0 12px" }}>Enter:</p>
+        <ul style={{ margin: "0 0 12px", paddingLeft: 18, lineHeight: 1.9 }}>
+          <li>The <strong style={{ color: "#F9FAFB" }}>email address</strong> of your Reddit account</li>
+          <li>Your <strong style={{ color: "#F9FAFB" }}>Reddit username</strong> (e.g. <code style={{ background: "#1F2937", padding: "1px 5px", borderRadius: 4 }}>u/yourname</code>)</li>
+        </ul>
+        <p style={{ margin: 0 }}>You can add multiple Reddit accounts if you manage more than one.</p>
+      </div>
+    ),
+  },
+  {
+    title: "Select your subreddits",
+    icon: "📋",
+    content: () => (
+      <div>
+        <p style={{ margin: 0 }}>Select the subreddits you want to monitor with that Reddit account. ReSurge will watch those subreddits for viral posts and alert you when one takes off.</p>
+      </div>
+    ),
+  },
+  {
+    title: "You'll get email alerts",
+    icon: "📧",
+    content: (email: string) => (
+      <div>
+        <p style={{ margin: "0 0 12px" }}>When a post goes viral, you'll receive an alert email at <strong style={{ color: "#F9FAFB" }}>{email}</strong>.</p>
+        <p style={{ margin: "0 0 12px" }}>The email shows the post title and a button <strong style={{ color: "#F59E0B" }}>Open &amp; Respond</strong>. Clicking it opens the post popup directly in this portal.</p>
+        <p style={{ margin: 0, fontSize: 12, color: "#6B7280" }}>You can also see all live viral posts directly on this dashboard.</p>
+      </div>
+    ),
+  },
+  {
+    title: "Generate and post your comment",
+    icon: "💬",
+    content: () => (
+      <div>
+        <p style={{ margin: "0 0 10px" }}>Once the post popup is open:</p>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 2 }}>
+          <li>Click <strong style={{ color: "#F9FAFB" }}>Generate Comment</strong>, AI writes a relevant reply</li>
+          <li>Click <strong style={{ color: "#F9FAFB" }}>Copy</strong> and paste it as a comment on Reddit</li>
+          <li>Come back, click <strong style={{ color: "#A78BFA" }}>Paste Link</strong> and drop the Reddit comment URL to track it</li>
+        </ol>
+      </div>
+    ),
+  },
+];
+
+function MonitorOnboarding({ user, onDone }: { user: any; onDone: () => void }) {
+  const [step, setStep] = useState(0);
+  const s = ONBOARDING_STEPS[step];
+  const isLast = step === ONBOARDING_STEPS.length - 1;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 600, padding: 24 }}>
+      <div style={{ background: "#0F1117", border: "1px solid #1F2937", borderRadius: 16, width: "min(520px,96vw)", overflow: "hidden", boxShadow: "0 24px 64px #00000090" }}>
+        {/* Progress bar */}
+        <div style={{ height: 3, background: "#1F2937" }}>
+          <div style={{ height: "100%", background: "#A78BFA", width: `${((step + 1) / ONBOARDING_STEPS.length) * 100}%`, transition: "width 0.3s ease" }} />
+        </div>
+        <div style={{ padding: "28px 32px 24px" }}>
+          {/* Step counter */}
+          <div style={{ fontSize: 11, color: "#6B7280", fontWeight: 700, letterSpacing: "0.08em", marginBottom: 16 }}>
+            STEP {step + 1} OF {ONBOARDING_STEPS.length}
+          </div>
+          {/* Icon + title */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+            <div style={{ fontSize: 28 }}>{s.icon}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#F9FAFB" }}>{s.title}</div>
+          </div>
+          {/* Content */}
+          <div style={{ fontSize: 14, color: "#9CA3AF", lineHeight: 1.75, minHeight: 120 }}>
+            {s.content(user.email)}
+          </div>
+        </div>
+        {/* Footer */}
+        <div style={{ padding: "16px 32px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #1F2937" }}>
+          <button onClick={onDone} style={{ background: "none", border: "none", color: "#4B5563", cursor: "pointer", fontFamily: "inherit", fontSize: 12 }}>
+            Skip setup guide
+          </button>
+          <div style={{ display: "flex", gap: 10 }}>
+            {step > 0 && (
+              <button onClick={() => setStep(s => s - 1)}
+                style={{ background: "none", border: "1px solid #1F2937", color: "#9CA3AF", cursor: "pointer", fontFamily: "inherit", fontSize: 13, padding: "10px 20px", borderRadius: 8, fontWeight: 600 }}>
+                Back
+              </button>
+            )}
+            <button onClick={() => isLast ? onDone() : setStep(s => s + 1)}
+              style={{ background: "#A78BFA", border: "none", color: "#fff", cursor: "pointer", fontFamily: "inherit", fontSize: 13, padding: "10px 24px", borderRadius: 8, fontWeight: 700 }}>
+              {isLast ? "Let's go →" : "Next →"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MonitorDashboard({ user, onLogout, initialPostId }: any) {
   const [section, setSection] = useState("accounts");
   const [openAccId, setOpenAccId] = useState<any>(null);
@@ -673,6 +798,7 @@ function MonitorDashboard({ user, onLogout, initialPostId }: any) {
   const [selectedHolder, setSelectedHolder] = useState<any>(null);
   const [showManageAcc, setShowManageAcc] = useState(false);
   const [editAcc, setEditAcc] = useState<any>(null);
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("monitor_onboarding_done"));
 
   useEffect(() => { loadAccounts(); reqM("GET", "/monitor/holders").then(setHolders).catch(() => {}); }, []);
 
@@ -732,6 +858,7 @@ function MonitorDashboard({ user, onLogout, initialPostId }: any) {
 
   return (
     <div style={{ display: "flex", height: "100vh", background: C_M.bg, fontFamily: "'IBM Plex Sans',sans-serif", overflow: "hidden" }}>
+      {showOnboarding && <MonitorOnboarding user={user} onDone={() => { localStorage.setItem("monitor_onboarding_done", "1"); setShowOnboarding(false); }} />}
       {showAddAcc && <AddAccountModalH onClose={() => setShowAddAcc(false)} onAdded={() => { setShowAddAcc(false); loadAccounts(); }} />}
       {showManageAcc && <ManageAccountsModal onClose={() => setShowManageAcc(false)} />}
       {editAcc && <EditAccountSubredditsModal account={editAcc} onClose={() => setEditAcc(null)} onSaved={() => { setEditAcc(null); loadAccounts(); }} saveSubreddits={(subs: string[]) => reqM("PUT", `/holder/accounts/${editAcc.id}`, { subreddits: subs })}/>}
@@ -785,6 +912,14 @@ function MonitorDashboard({ user, onLogout, initialPostId }: any) {
             <span style={{ fontSize: 12, color: section === "holders" ? C_M.accent : "#9CA3AF", fontWeight: section === "holders" ? 600 : 400, flex: 1 }}>Holders</span>
             {holders.length > 0 && <span style={{ fontSize: 10, color: "#6B7280" }}>{holders.length}</span>}
           </div>
+          <div onClick={() => setShowOnboarding(true)} style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 7, cursor: "pointer", marginBottom: 2 }}
+            onMouseEnter={(e: any) => e.currentTarget.style.background = "#111318"}
+            onMouseLeave={(e: any) => e.currentTarget.style.background = "transparent"}>
+            <span style={{ width: 20, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "#6B7280" }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </span>
+            <span style={{ fontSize: 12, color: "#9CA3AF" }}>Setup Guide</span>
+          </div>
           <div onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 7, cursor: "pointer" }}
             onMouseEnter={(e: any) => e.currentTarget.style.background = "#111318"}
             onMouseLeave={(e: any) => e.currentTarget.style.background = "transparent"}>
@@ -823,12 +958,7 @@ function MonitorDashboard({ user, onLogout, initialPostId }: any) {
 }
 
 function MonitorApp({ user, onLogout, initialPostId }: any) {
-  const [newSignup, setNewSignup] = useState(false);
-  useEffect(() => {
-    const flag = sessionStorage.getItem("monitor_new_signup");
-    if (flag) { sessionStorage.removeItem("monitor_new_signup"); setNewSignup(true); }
-  }, []);
-  if (newSignup) return <AccountSetupH onDone={() => setNewSignup(false)} />;
+  useEffect(() => { sessionStorage.removeItem("monitor_new_signup"); }, []);
   return <MonitorDashboard user={user} onLogout={onLogout} initialPostId={initialPostId} />;
 }
 
@@ -1333,15 +1463,7 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
 }
 
 function HolderApp({ user, onLogout, initialPostId }: any) {
-  const [newSignup, setNewSignup] = useState(false);
-
-  // If user came from signup flow, show account setup
-  useEffect(() => {
-    const flag = sessionStorage.getItem("holder_new_signup");
-    if (flag) { sessionStorage.removeItem("holder_new_signup"); setNewSignup(true); }
-  }, []);
-
-  if (newSignup) return <AccountSetupH onDone={() => setNewSignup(false)} />;
+  useEffect(() => { sessionStorage.removeItem("holder_new_signup"); }, []);
   return <HolderDashboard user={user} onLogout={onLogout} initialPostId={initialPostId} />;
 }
 

@@ -71,7 +71,7 @@ export default function PostHistory({ subreddit }: any) {
       <div style={{ flexShrink:0, padding:"20px 24px 0" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
           <span style={{ fontFamily:"'IBM Plex Sans',sans-serif", fontWeight:700, fontSize:15 }}>
-            📋 Stack 4 History — r/{subreddit}
+            📋 Stack 3 Notification History — r/{subreddit}
           </span>
           <span style={{ fontSize:10, color:"#6B7280", background:"#1F2937", padding:"2px 8px", borderRadius:10 }}>
             {visible.length}{posts.length !== visible.length ? ` / ${posts.length}` : ""} posts
@@ -129,7 +129,7 @@ export default function PostHistory({ subreddit }: any) {
           <div style={{ border:"1px dashed #1F2937", borderRadius:10, padding:"48px 20px", textAlign:"center" }}>
             <div style={{ fontSize:28, marginBottom:10 }}>📂</div>
             <div style={{ fontSize:12, color:"#6B7280" }}>
-              {posts.length === 0 ? "No posts have reached Stack 4 yet." : "No results match your filters."}
+              {posts.length === 0 ? "No posts have reached Stack 3 yet." : "No results match your filters."}
             </div>
           </div>
         ) : (

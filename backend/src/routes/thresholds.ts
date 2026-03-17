@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../db/client.js";
-import { thresholds } from "../db/schema.js";
-import { eq, isNull } from "drizzle-orm";
+import { thresholds, thresholdEdits } from "../db/schema.js";
+import { eq, isNull, desc } from "drizzle-orm";
 
 export const thresholdRoutes = new Hono();
 
@@ -80,4 +80,25 @@ thresholdRoutes.put("/", async (c) => {
     .returning();
 
   return c.json(updated);
+});
+
+// GET /api/thresholds/edits?subreddit=xxx
+thresholdRoutes.get("/edits", async (c) => {
+  const sub = c.req.query("subreddit") ?? null;
+  const rows = sub
+    ? await db.select().from(thresholdEdits).where(eq(thresholdEdits.subreddit, sub)).orderBy(desc(thresholdEdits.editedAt))
+    : await db.select().from(thresholdEdits).where(isNull(thresholdEdits.subreddit)).orderBy(desc(thresholdEdits.editedAt));
+  return c.json(rows);
+});
+
+// POST /api/thresholds/edits
+thresholdRoutes.post("/edits", async (c) => {
+  const { subreddit, before, after, note } = await c.req.json();
+  const [row] = await db.insert(thresholdEdits).values({
+    subreddit: subreddit ?? null,
+    before: JSON.stringify(before),
+    after:  JSON.stringify(after),
+    note:   note ?? null,
+  }).returning();
+  return c.json(row);
 });

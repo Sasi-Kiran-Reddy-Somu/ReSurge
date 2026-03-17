@@ -50,12 +50,14 @@ function renderSlider(
   );
 }
 
-export default function SliderPanel({ thresholds, onSave, subreddit }: any) {
+export default function SliderPanel({ thresholds, onSave, onEditSaved, subreddit }: any) {
   const [local,      setLocal]      = useState<any>(() => ({ ...thresholds }));
   const [saving,     setSaving]     = useState(false);
   const [saveError,  setSaveError]  = useState<string | null>(null);
   const [confirm,    setConfirm]    = useState<any>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [notePrompt, setNotePrompt] = useState<{ before: any; after: any } | null>(null);
+  const [note,       setNote]       = useState("");
 
   useEffect(() => { setLocal({ ...thresholds }); }, [thresholds]);
 
@@ -66,10 +68,24 @@ export default function SliderPanel({ thresholds, onSave, subreddit }: any) {
   }
 
   async function executeSave() {
+    const before = { ...thresholds };
+    const after  = { ...local };
     setSaving(true); setSaveError(null); setConfirm(null);
-    try { await onSave(local); }
+    try {
+      await onSave(local);
+      setNotePrompt({ before, after });
+      setNote("");
+    }
     catch (e: any) { setSaveError(e?.message ?? "Save failed — check backend"); }
     finally { setSaving(false); }
+  }
+
+  function submitNote(skipNote = false) {
+    if (notePrompt && onEditSaved) {
+      onEditSaved({ before: notePrompt.before, after: notePrompt.after, note: skipNote ? null : (note.trim() || null) });
+    }
+    setNotePrompt(null);
+    setNote("");
   }
 
   function executeDiscard() { setLocal({ ...thresholds }); setConfirm(null); }
@@ -125,6 +141,36 @@ export default function SliderPanel({ thresholds, onSave, subreddit }: any) {
               <button onClick={confirm === "save" ? executeSave : executeDiscard}
                 style={{ flex:1, background: confirm === "save" ? "#22C55E" : "#7F1D1D", color: confirm === "save" ? "#000" : "#FCA5A5", border:"none", borderRadius:7, padding:"10px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 {confirm === "save" ? "Yes, save" : "Yes, discard"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Note prompt — shown after a successful save */}
+      {notePrompt && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:500 }}>
+          <div style={{ background:"#0F1117", border:"1px solid #374151", borderRadius:12, padding:28, width:400, fontFamily:"'IBM Plex Sans',sans-serif" }}>
+            <div style={{ fontWeight:700, fontSize:14, color:"#F9FAFB", marginBottom:6 }}>Changes saved</div>
+            <div style={{ fontSize:12, color:"#6B7280", marginBottom:16, lineHeight:1.6 }}>
+              Add an optional note to remember why you made this change.
+            </div>
+            <textarea
+              autoFocus
+              value={note}
+              onChange={(e: any) => setNote(e.target.value)}
+              placeholder="e.g. Lowered growth % to catch slower-moving posts in r/beauty"
+              rows={3}
+              style={{ width:"100%", background:"#0A0C12", border:"1px solid #374151", borderRadius:6, padding:"10px 12px", color:"#F9FAFB", fontSize:12, fontFamily:"inherit", resize:"none", outline:"none", boxSizing:"border-box" as any }}
+            />
+            <div style={{ display:"flex", gap:10, marginTop:16 }}>
+              <button onClick={() => submitNote(true)}
+                style={{ flex:1, background:"#1F2937", color:"#9CA3AF", border:"none", borderRadius:7, padding:"10px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit" }}>
+                Skip
+              </button>
+              <button onClick={() => submitNote(false)}
+                style={{ flex:1, background:"#3B82F6", color:"#fff", border:"none", borderRadius:7, padding:"10px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                Save Note
               </button>
             </div>
           </div>

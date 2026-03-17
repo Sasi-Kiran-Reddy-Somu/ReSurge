@@ -31,6 +31,8 @@ export const api = {
   generateComment:  (id: any)             => req("POST",   `/posts/${id}/generate-comment`),
 
   // Thresholds (per-subreddit)
-  getThresholds:    (sub: string)         => req("GET",  `/thresholds${sub ? `?subreddit=${encodeURIComponent(sub)}` : ""}`),
-  saveThresholds:   (sub: string, data: any) => req("PUT",  `/thresholds${sub ? `?subreddit=${encodeURIComponent(sub)}` : ""}`, data),
+  getThresholds:      (sub: string)              => req("GET",  `/thresholds${sub ? `?subreddit=${encodeURIComponent(sub)}` : ""}`),
+  saveThresholds:     (sub: string, data: any)   => req("PUT",  `/thresholds${sub ? `?subreddit=${encodeURIComponent(sub)}` : ""}`, data),
+  getThresholdEdits:  (sub: string)              => req("GET",  `/thresholds/edits${sub ? `?subreddit=${encodeURIComponent(sub)}` : ""}`),
+  saveThresholdEdit:  (data: any)                => req("POST", `/thresholds/edits`, data),
 };

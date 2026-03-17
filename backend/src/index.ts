@@ -86,6 +86,23 @@ async function bootstrap() {
     console.error("invited_users table error:", (err as Error).message);
   }
 
+  // Ensure threshold_edits table exists
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "threshold_edits" (
+        "id"         uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "subreddit"  text,
+        "before"     text NOT NULL,
+        "after"      text NOT NULL,
+        "note"       text,
+        "edited_at"  timestamp NOT NULL DEFAULT now()
+      )
+    `);
+    console.log("✓ threshold_edits table ready");
+  } catch (err) {
+    console.error("threshold_edits table error:", (err as Error).message);
+  }
+
   createPollWorker();
   console.log("✓ Poll worker started");
 
