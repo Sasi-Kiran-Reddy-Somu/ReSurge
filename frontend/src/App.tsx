@@ -284,6 +284,61 @@ const inpM: any = {background:C_M.surface,border:`1px solid ${C_M.border}`,borde
 const statusColorM = (s: string) => s==="posted"?C_M.green:s==="done"?C_M.dim:s==="opened"?C_M.accent:C_M.amber;
 function timeAgoM(ts: any) { const d=(Date.now()-new Date(ts).getTime())/1000; if(d<60)return`${Math.round(d)}s ago`; if(d<3600)return`${Math.round(d/60)}m ago`; if(d<86400)return`${Math.round(d/3600)}h ago`; return`${Math.round(d/86400)}d ago`; }
 
+function pauseTimeLeft(until: number) { const ms = until - Date.now(); if (ms <= 0) return null; const h = Math.floor(ms/3600000); const m = Math.floor((ms%3600000)/60000); return h > 0 ? `${h}h ${m}m` : `${m}m`; }
+
+function PauseModalShared({ isPaused, pausedUntil, onClose, onPause, onResume, accent }: any) {
+  const [hours, setHours] = useState(1); const [editing, setEditing] = useState(false); const [inputVal, setInputVal] = useState("1"); const [busy, setBusy] = useState(false);
+  const timeLeft = isPaused && pausedUntil ? pauseTimeLeft(pausedUntil) : null;
+  const C = C_M;
+  function clamp(v: number) { return Math.min(16, Math.max(1, Math.round(v))); }
+  function commitEdit() { const v = parseInt(inputVal, 10); if (!isNaN(v)) setHours(clamp(v)); setEditing(false); }
+  async function handlePause() { setBusy(true); try { await onPause(hours); onClose(); } catch(e: any) { alert(e.message); } finally { setBusy(false); } }
+  async function handleResume() { setBusy(true); try { await onResume(); onClose(); } catch(e: any) { alert(e.message); } finally { setBusy(false); } }
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500}}>
+      <div style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:14,width:"min(380px,96vw)",padding:28}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{fontSize:15,fontWeight:800,color:C.text}}>Pause Notifications</div>
+          <button onClick={onClose} style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontSize:18,borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+        </div>
+        {isPaused && timeLeft ? (
+          <>
+            <div style={{background:"#0A1A10",border:`1px solid #065F46`,borderRadius:10,padding:"16px 18px",marginBottom:20,textAlign:"center"}}>
+              <div style={{fontSize:11,color:C.green,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>CURRENTLY PAUSED</div>
+              <div style={{fontSize:28,fontWeight:800,color:C.text,marginBottom:4}}>{timeLeft}</div>
+              <div style={{fontSize:12,color:C.muted}}>remaining</div>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={handleResume} disabled={busy} style={{...btnM(C.green,"#000"),flex:1,padding:"11px"}}>{busy?"Resuming...":"Resume Now"}</button>
+              <button onClick={onClose} style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontFamily:"inherit",fontSize:13,padding:"11px 16px",borderRadius:7}}>Close</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{fontSize:13,color:C.muted,marginBottom:20}}>Pause email notifications for how long?</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:16,marginBottom:24}}>
+              <button onClick={() => setHours(h => clamp(h-1))} style={{width:40,height:40,borderRadius:8,background:C.surface,border:`1px solid ${C.border}`,color:C.text,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",lineHeight:1}}>−</button>
+              {editing ? (
+                <input autoFocus value={inputVal} onChange={e => setInputVal(e.target.value)} onBlur={commitEdit} onKeyDown={(e: any) => { if(e.key==="Enter") commitEdit(); if(e.key==="Escape") setEditing(false); }} style={{width:80,textAlign:"center",background:C.surface,border:`1px solid ${accent}`,borderRadius:8,padding:"8px 0",color:C.text,fontSize:22,fontWeight:700,fontFamily:"inherit",outline:"none"}}/>
+              ) : (
+                <div onDoubleClick={() => { setInputVal(String(hours)); setEditing(true); }} title="Double-click to type a value" style={{width:80,textAlign:"center",fontSize:22,fontWeight:800,color:C.text,cursor:"default",userSelect:"none",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 0"}}>
+                  {hours}<span style={{fontSize:13,fontWeight:500,color:C.muted,marginLeft:4}}>hr</span>
+                </div>
+              )}
+              <button onClick={() => setHours(h => clamp(h+1))} style={{width:40,height:40,borderRadius:8,background:C.surface,border:`1px solid ${C.border}`,color:C.text,fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",lineHeight:1}}>+</button>
+            </div>
+            <div style={{fontSize:11,color:C.muted,textAlign:"center",marginBottom:20}}>Max 16 hours · Double-click the number to type a custom value</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={handlePause} disabled={busy} style={{...btnM(accent,"#000"),flex:1,padding:"11px"}}>{busy?"Pausing...":"Done"}</button>
+              <button onClick={onClose} style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,cursor:"pointer",fontFamily:"inherit",fontSize:13,padding:"11px 16px",borderRadius:7}}>Cancel</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function getTokenM() { return localStorage.getItem("token"); }
 async function reqM(method: string, path: string, body?: any) {
   const ctrl = new AbortController();
@@ -803,7 +858,13 @@ function MonitorDashboard({ user, onLogout, initialPostId }: any) {
   const [editAcc, setEditAcc] = useState<any>(null);
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("monitor_onboarding_done"));
 
-  useEffect(() => { loadAccounts(); reqM("GET", "/monitor/holders").then(setHolders).catch(() => {}); }, []);
+  const [pausedUntilM, setPausedUntilM] = useState<number|null>(null);
+  const [showPauseM, setShowPauseM] = useState(false);
+  const [,setTickM] = useState(0);
+  useEffect(() => { const id = setInterval(() => setTickM(t=>t+1), 30000); return () => clearInterval(id); }, []);
+  const isPausedM = pausedUntilM && pausedUntilM > Date.now();
+
+  useEffect(() => { loadAccounts(); reqM("GET", "/monitor/holders").then(setHolders).catch(() => {}); reqM("GET", "/holder/pause-status").then((d:any) => setPausedUntilM(d.pausedUntil??null)).catch(()=>{}); }, []);
 
   function loadAccounts() {
     reqM("GET", "/holder/accounts").then((accs: any[]) => {
@@ -923,6 +984,14 @@ function MonitorDashboard({ user, onLogout, initialPostId }: any) {
             </span>
             <span style={{ fontSize: 12, color: "#9CA3AF" }}>Setup Guide</span>
           </div>
+          <div onClick={() => setShowPauseM(true)} style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",borderRadius:7,cursor:"pointer",background:isPausedM?"#0A1A10":"none",border:`1px solid ${isPausedM?"#065F46":"transparent"}`,marginBottom:2}}
+            onMouseEnter={(e: any) => { if(!isPausedM) e.currentTarget.style.background="#111318"; }}
+            onMouseLeave={(e: any) => { if(!isPausedM) e.currentTarget.style.background="none"; }}>
+            <span style={{width:20,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:isPausedM?C_M.green:"#6B7280"}}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            </span>
+            <span style={{fontSize:12,color:isPausedM?C_M.green:"#9CA3AF",fontWeight:isPausedM?600:400}}>{isPausedM?`Paused · ${pauseTimeLeft(pausedUntilM!)||"resuming"}`:"Pause Notifications"}</span>
+          </div>
           <div onClick={onLogout} style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 7, cursor: "pointer" }}
             onMouseEnter={(e: any) => e.currentTarget.style.background = "#111318"}
             onMouseLeave={(e: any) => e.currentTarget.style.background = "transparent"}>
@@ -931,6 +1000,7 @@ function MonitorDashboard({ user, onLogout, initialPostId }: any) {
             </span>
             <span style={{ fontSize: 12, color: "#9CA3AF" }}>Logout</span>
           </div>
+          {showPauseM && <PauseModalShared isPaused={!!isPausedM} pausedUntil={pausedUntilM} onClose={()=>setShowPauseM(false)} accent={C_M.accent} onPause={async(h:number)=>{const d=await reqM("PUT","/holder/pause-notifications",{hours:h});setPausedUntilM(d.pausedUntil);}} onResume={async()=>{await reqM("PUT","/holder/pause-notifications",{hours:null});setPausedUntilM(null);}}/>}
         </div>
       </div>
 
@@ -998,6 +1068,9 @@ const holderApi = {
   addAccount:       (data: any)     => reqH("POST", "/holder/accounts", data),
   updateAccount:    (id: any, data: any) => reqH("PUT", `/holder/accounts/${id}`, data),
   deleteAccount:    (id: any)       => reqH("DELETE", `/holder/accounts/${id}`),
+  getPauseStatus:   ()              => reqH("GET",  "/holder/pause-status"),
+  pauseNotifications: (hours: number) => reqH("PUT", "/holder/pause-notifications", { hours }),
+  resumeNotifications: ()           => reqH("PUT",  "/holder/pause-notifications", { hours: null }),
 };
 
 function SubredditGrid({ allSubs, sel, onToggle }: any) {
@@ -1315,9 +1388,16 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
   const [delAccBusy, setDelAccBusy] = useState<any>(null);
   const commentCache = useRef<any>({});
 
+  const [pausedUntilH, setPausedUntilH] = useState<number|null>(null);
+  const [showPauseH, setShowPauseH] = useState(false);
+  const [,setTickH] = useState(0);
+  useEffect(() => { const id = setInterval(() => setTickH(t=>t+1), 30000); return () => clearInterval(id); }, []);
+  const isPausedH = pausedUntilH && pausedUntilH > Date.now();
+
   useEffect(() => {
     load();
     loadAccounts();
+    holderApi.getPauseStatus().then((d:any) => setPausedUntilH(d.pausedUntil??null)).catch(()=>{});
     // Handle deep-link: read directly from sessionStorage so it's always available
     const nId = sessionStorage.getItem("pending_post_id") || initialPostId;
     if (nId) {
@@ -1421,8 +1501,13 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
         </div>
 
         <div style={{padding:"16px 20px",borderTop:`1px solid ${C_H.border}`}}>
+          <button onClick={()=>setShowPauseH(true)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:isPausedH?"#0A1A10":"none",border:`1px solid ${isPausedH?"#065F46":C_H.border}`,borderRadius:7,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",marginBottom:8}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={isPausedH?C_H.green:C_H.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            <span style={{fontSize:12,color:isPausedH?C_H.green:C_H.sub,fontWeight:isPausedH?600:400}}>{isPausedH?`Paused · ${pauseTimeLeft(pausedUntilH!)||"resuming"}`:"Pause Notifications"}</span>
+          </button>
           <button onClick={onLogout} style={{background:"none",border:"none",color:C_H.sub,cursor:"pointer",fontFamily:"inherit",fontSize:13,padding:"6px 0"}}>→ Logout</button>
         </div>
+        {showPauseH && <PauseModalShared isPaused={!!isPausedH} pausedUntil={pausedUntilH} onClose={()=>setShowPauseH(false)} accent={C_H.accent} onPause={async(h:number)=>{const d=await holderApi.pauseNotifications(h);setPausedUntilH(d.pausedUntil);}} onResume={async()=>{await holderApi.resumeNotifications();setPausedUntilH(null);}}/>}
       </div>
 
       {openAccId
