@@ -82,6 +82,12 @@ thresholdRoutes.put("/", async (c) => {
   return c.json(updated);
 });
 
+// GET /api/thresholds/edits/all — all edits across every subreddit
+thresholdRoutes.get("/edits/all", async (c) => {
+  const rows = await db.select().from(thresholdEdits).orderBy(desc(thresholdEdits.editedAt));
+  return c.json(rows);
+});
+
 // GET /api/thresholds/edits?subreddit=xxx
 thresholdRoutes.get("/edits", async (c) => {
   const sub = c.req.query("subreddit") ?? null;

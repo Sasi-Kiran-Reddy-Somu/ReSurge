@@ -33,6 +33,7 @@ export const api = {
   // Thresholds (per-subreddit)
   getThresholds:      (sub: string)              => req("GET",  `/thresholds${sub ? `?subreddit=${encodeURIComponent(sub)}` : ""}`),
   saveThresholds:     (sub: string, data: any)   => req("PUT",  `/thresholds${sub ? `?subreddit=${encodeURIComponent(sub)}` : ""}`, data),
-  getThresholdEdits:  (sub: string)              => req("GET",  `/thresholds/edits${sub ? `?subreddit=${encodeURIComponent(sub)}` : ""}`),
-  saveThresholdEdit:  (data: any)                => req("POST", `/thresholds/edits`, data),
+  getThresholdEdits:    (sub: string)  => req("GET",  `/thresholds/edits${sub ? `?subreddit=${encodeURIComponent(sub)}` : ""}`),
+  getAllThresholdEdits: ()            => req("GET",  `/thresholds/edits/all`),
+  saveThresholdEdit:   (data: any)   => req("POST", `/thresholds/edits`, data),
 };

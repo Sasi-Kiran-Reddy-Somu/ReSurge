@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-export default function Sidebar({ subreddits, activeTab, onSwitch, onAdd, stackCounts, countdown, lastRefresh, view, onViewMonitors, onViewHolders, onViewNotifications, onViewSubreddits, onViewAlerts, alertCount, onViewAddUsers, onLogout }: any) {
+export default function Sidebar({ subreddits, activeTab, onSwitch, onAdd, stackCounts, countdown, lastRefresh, view, onViewMonitors, onViewHolders, onViewNotifications, onViewSubreddits, onViewAlerts, alertCount, onViewAddUsers, onViewAllEdits, onLogout }: any) {
   const [input,      setInput]      = useState("");
   const [err,        setErr]        = useState("");
   const [busy,       setBusy]       = useState(false);
@@ -83,6 +83,10 @@ export default function Sidebar({ subreddits, activeTab, onSwitch, onAdd, stackC
           {
             label:"All Notifications", active:view==="notifications", color:"#F59E0B", bg:"#1C1400", onClick:onViewNotifications, badge: null,
             icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          },
+          {
+            label:"All Edits", active:view==="all-edits", color:"#3B82F6", bg:"#0D1626", onClick:onViewAllEdits, badge: null,
+            icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           },
           {
             label:"Manage Subreddits", active:view==="subreddits", color:"#9CA3AF", bg:"#111318", onClick:onViewSubreddits, badge: null,

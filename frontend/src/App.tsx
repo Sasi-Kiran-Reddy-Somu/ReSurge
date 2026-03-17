@@ -9,6 +9,7 @@ import HoldersPanel     from "./components/HoldersPanel";
 import AllNotifications from "./components/AllNotifications";
 import PostHistory           from "./components/PostHistory";
 import ThresholdEditHistory  from "./components/ThresholdEditHistory";
+import AllEdits              from "./components/AllEdits";
 import { api }               from "./utils/api";
 import SubredditsPanel  from "./components/SubredditsPanel";
 import AlertsPanel     from "./components/AlertsPanel";
@@ -194,6 +195,7 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
         onViewAlerts={() => changeView("alerts")}
         alertCount={alertCount}
         onViewAddUsers={() => changeView("add-users")}
+        onViewAllEdits={() => changeView("all-edits")}
         onLogout={onLogout}
       />
 
@@ -207,6 +209,7 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
          ) :
          view === "alerts" ? <AlertsPanel onSelectHolder={(h: any) => { setSelectedHolder(h); setView("holders"); sessionStorage.setItem("main_view", "holders"); }} onAckChange={loadAlertCount} /> :
          view === "notifications" ? <AllNotifications /> :
+         view === "all-edits" ? <AllEdits /> :
          view === "subreddits" ? <SubredditsPanel subreddits={subreddits} onSubredditRemoved={removeSubreddit} onSubredditAdded={(s: any) => addSubreddit(s.name).catch(()=>{})} showToast={showToast} /> : (
           <>
             <div style={{ padding:"14px 24px 0", borderBottom:"1px solid #1A1D2E", flexShrink:0 }}>
