@@ -345,8 +345,8 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
                 <th style={{ textAlign: "center", fontSize: 10, color: "#6B7280", fontWeight: 600, letterSpacing: "0.08em", padding: "14px 0 10px" }}>S1</th>
                 <th style={{ textAlign: "center", fontSize: 10, color: "#3B82F6", fontWeight: 600, letterSpacing: "0.08em", padding: "14px 0 10px" }}>S2</th>
                 <th style={{ textAlign: "center", fontSize: 10, color: "#F59E0B", fontWeight: 600, letterSpacing: "0.08em", padding: "14px 0 10px" }}>S3</th>
-                <th style={{ textAlign: "right", fontSize: 10, color: C.blue, fontWeight: 600, letterSpacing: "0.08em", padding: "14px 12px 10px" }}>SUBSCRIBERS</th>
-                <th style={{ textAlign: "right", fontSize: 10, color: C.amber, fontWeight: 600, letterSpacing: "0.08em", padding: "14px 16px 10px 0" }}>AVG NOTIFS/DAY</th>
+                <th style={{ textAlign: "center", fontSize: 10, color: C.blue, fontWeight: 600, letterSpacing: "0.08em", padding: "14px 12px 10px" }}>SUBSCRIBERS</th>
+                <th style={{ textAlign: "center", fontSize: 10, color: C.amber, fontWeight: 600, letterSpacing: "0.08em", padding: "14px 16px 10px 0" }}>AVG NOTIFS/DAY</th>
               </tr>
             </thead>
             <tbody>
@@ -383,10 +383,10 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
                     <td style={{ textAlign: "center", padding: "14px 8px" }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: "#F59E0B" }}>{c ? c.s3 : "—"}</span>
                     </td>
-                    <td style={{ textAlign: "right", padding: "14px 12px", fontSize: 13, fontWeight: 700, color: C.blue }}>
+                    <td style={{ textAlign: "center", padding: "14px 12px", fontSize: 13, fontWeight: 700, color: C.blue }}>
                       {bs ? bs.subscriberCount : "—"}
                     </td>
-                    <td style={{ textAlign: "right", padding: "14px 16px 14px 0", fontSize: 13, fontWeight: 700, color: C.amber }}>
+                    <td style={{ textAlign: "center", padding: "14px 16px 14px 0", fontSize: 13, fontWeight: 700, color: C.amber }}>
                       {bs ? bs.avgNotifiedPerDay : "—"}
                     </td>
                   </tr>
