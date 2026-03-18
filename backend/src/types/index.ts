@@ -49,6 +49,7 @@ export interface RedditPost {
   author: string;
   selftext: string;
   subreddit?: string;
+  subreddit_subscribers?: number;
 }
 
 export type AppEnv = {

@@ -96,6 +96,16 @@ async function bootstrap() {
     console.error("notifications_paused_until column error:", (err as Error).message);
   }
 
+  // Ensure subscribers column exists on subreddits
+  try {
+    await db.execute(sql`
+      ALTER TABLE "subreddits" ADD COLUMN IF NOT EXISTS "subscribers" integer DEFAULT 0
+    `);
+    console.log("✓ subreddits.subscribers column ready");
+  } catch (err) {
+    console.error("subreddits.subscribers column error:", (err as Error).message);
+  }
+
   // Ensure threshold_edits table exists
   try {
     await db.execute(sql`

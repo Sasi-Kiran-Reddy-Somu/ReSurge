@@ -91,6 +91,18 @@ async function runPoll() {
 
   console.log(`  Fetched ${fetchedPosts.length} total posts from Reddit`);
 
+  // Update subscriber counts from post data (each post includes subreddit_subscribers)
+  const subscriberMap = new Map<string, number>();
+  for (const rp of fetchedPosts) {
+    const sub = (rp.subreddit as string)?.toLowerCase();
+    if (sub && rp.subreddit_subscribers && !subscriberMap.has(sub)) {
+      subscriberMap.set(sub, rp.subreddit_subscribers);
+    }
+  }
+  for (const [sub, count] of subscriberMap.entries()) {
+    await db.update(subreddits).set({ subscribers: count }).where(eq(subreddits.name, sub));
+  }
+
   // Step 3: Insert new posts
   const MAX_POST_AGE_MS = 2 * 60 * 60 * 1000;
   const newCounts: Record<string, number> = {};

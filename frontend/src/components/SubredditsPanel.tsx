@@ -208,6 +208,7 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
   const [addBusy, setAddBusy] = useState(false);
   const [search, setSearch] = useState("");
   const [counts, setCounts] = useState<Record<string, { s1: number; s2: number; s3: number }>>({});
+  const [bulkStats, setBulkStats] = useState<Record<string, { subscriberCount: number; avgNotifiedPerDay: number }>>({});
 
   // Keep in sync when parent prop changes
   useEffect(() => { setSubs(initialSubs ?? []); }, [initialSubs]);
@@ -226,6 +227,14 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
   }, []);
 
   useEffect(() => { refreshCounts(subs); }, [subs, refreshCounts]);
+
+  useEffect(() => {
+    req("GET", "/subreddits/bulk-stats").then((rows: any[]) => {
+      const map: Record<string, { subscriberCount: number; avgNotifiedPerDay: number }> = {};
+      for (const r of rows) map[r.name] = { subscriberCount: r.subscriberCount, avgNotifiedPerDay: r.avgNotifiedPerDay };
+      setBulkStats(map);
+    }).catch(() => {});
+  }, [subs.length]);
 
   // Refresh every 15s
   useEffect(() => {
@@ -320,9 +329,9 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
       </div>
 
       {/* Subreddits table */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "0 32px 24px" }}>
         {filtered.length === 0 ? (
-          <div style={{ border: "1px dashed #1F2937", borderRadius: 10, padding: "48px 20px", textAlign: "center" }}>
+          <div style={{ border: "1px dashed #1F2937", borderRadius: 10, padding: "48px 20px", textAlign: "center", marginTop: 24 }}>
             <div style={{ fontSize: 28, marginBottom: 10 }}>📭</div>
             <div style={{ fontSize: 12, color: C.muted }}>
               {subs.length === 0 ? "No subreddits tracked yet. Add one above." : "No results match your search."}
@@ -330,18 +339,20 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
           </div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
+            <thead style={{ position: "sticky", top: 0, zIndex: 10, background: C.bg }}>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                <th style={{ textAlign: "left", fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: "0.08em", padding: "0 0 10px 16px" }}>SUBREDDIT</th>
-                <th style={{ textAlign: "center", fontSize: 10, color: "#6B7280", fontWeight: 600, letterSpacing: "0.08em", padding: "0 0 10px" }}>S1</th>
-                <th style={{ textAlign: "center", fontSize: 10, color: "#3B82F6", fontWeight: 600, letterSpacing: "0.08em", padding: "0 0 10px" }}>S2</th>
-                <th style={{ textAlign: "center", fontSize: 10, color: "#F59E0B", fontWeight: 600, letterSpacing: "0.08em", padding: "0 0 10px" }}>S3</th>
-                <th style={{ textAlign: "right", fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: "0.08em", padding: "0 16px 10px 0" }}>ADDED</th>
+                <th style={{ textAlign: "left", fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: "0.08em", padding: "14px 0 10px 16px" }}>SUBREDDIT</th>
+                <th style={{ textAlign: "center", fontSize: 10, color: "#6B7280", fontWeight: 600, letterSpacing: "0.08em", padding: "14px 0 10px" }}>S1</th>
+                <th style={{ textAlign: "center", fontSize: 10, color: "#3B82F6", fontWeight: 600, letterSpacing: "0.08em", padding: "14px 0 10px" }}>S2</th>
+                <th style={{ textAlign: "center", fontSize: 10, color: "#F59E0B", fontWeight: 600, letterSpacing: "0.08em", padding: "14px 0 10px" }}>S3</th>
+                <th style={{ textAlign: "right", fontSize: 10, color: C.blue, fontWeight: 600, letterSpacing: "0.08em", padding: "14px 12px 10px" }}>SUBSCRIBERS</th>
+                <th style={{ textAlign: "right", fontSize: 10, color: C.amber, fontWeight: 600, letterSpacing: "0.08em", padding: "14px 16px 10px 0" }}>AVG NOTIFS/DAY</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((sub: any, i: number) => {
                 const c = counts[sub.name];
+                const bs = bulkStats[sub.name];
                 return (
                   <tr key={sub.name} onClick={() => setSelected(sub.name)}
                     style={{
@@ -372,8 +383,11 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
                     <td style={{ textAlign: "center", padding: "14px 8px" }}>
                       <span style={{ fontSize: 14, fontWeight: 700, color: "#F59E0B" }}>{c ? c.s3 : "—"}</span>
                     </td>
-                    <td style={{ textAlign: "right", padding: "14px 16px 14px 0", fontSize: 11, color: C.muted }}>
-                      {new Date(sub.addedAt).toLocaleDateString()}
+                    <td style={{ textAlign: "right", padding: "14px 12px", fontSize: 13, fontWeight: 700, color: C.blue }}>
+                      {bs ? bs.subscriberCount : "—"}
+                    </td>
+                    <td style={{ textAlign: "right", padding: "14px 16px 14px 0", fontSize: 13, fontWeight: 700, color: C.amber }}>
+                      {bs ? bs.avgNotifiedPerDay : "—"}
                     </td>
                   </tr>
                 );

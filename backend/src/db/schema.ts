@@ -18,6 +18,7 @@ export const subreddits = pgTable("subreddits", {
   isPaused:         boolean("is_paused").notNull().default(false),
   visibleToHolders: boolean("visible_to_holders").notNull().default(true),
   addedAt:          timestamp("added_at").notNull().defaultNow(),
+  subscribers:      integer("subscribers").default(0),
 });
 
 // ─── posts ─────────────────────────────────────────────────────

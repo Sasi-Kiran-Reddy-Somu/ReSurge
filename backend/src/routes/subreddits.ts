@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { db } from "../db/client.js";
 import { subreddits, posts, holderAccounts, notifications } from "../db/schema.js";
-import { eq, and, isNotNull, gte, sql } from "drizzle-orm";
+import { eq, and, isNotNull, gte, sql, inArray } from "drizzle-orm";
 
 export const subredditRoutes = new Hono();
 
@@ -21,6 +21,50 @@ subredditRoutes.get("/", async (c) => {
     .orderBy(subreddits.addedAt);
 
   return c.json(rows);
+});
+
+// GET /api/subreddits/bulk-stats — subscriberCount + avgNotifiedPerDay for all active subs
+subredditRoutes.get("/bulk-stats", async (c) => {
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+  const allSubs = await db.select({ name: subreddits.name, addedAt: subreddits.addedAt })
+    .from(subreddits).where(eq(subreddits.isActive, true));
+
+  if (allSubs.length === 0) return c.json([]);
+
+  const subNames = allSubs.map(s => s.name);
+
+  // Count holder accounts subscribed per subreddit (single query)
+  const holderRows = await db.select({ subreddits: holderAccounts.subreddits }).from(holderAccounts);
+  const holderCountMap = new Map<string, number>();
+  for (const row of holderRows) {
+    for (const sub of (row.subreddits ?? [])) {
+      if (sub.startsWith("~")) continue;
+      holderCountMap.set(sub, (holderCountMap.get(sub) ?? 0) + 1);
+    }
+  }
+
+  // Count alerted posts per subreddit in last 30 days
+  const alertCounts = await db
+    .select({ subreddit: posts.subreddit, count: sql<number>`count(*)::int` })
+    .from(posts)
+    .where(and(inArray(posts.subreddit, subNames), isNotNull(posts.alertedAt), gte(posts.alertedAt, thirtyDaysAgo)))
+    .groupBy(posts.subreddit);
+
+  const alertMap = new Map(alertCounts.map(r => [r.subreddit, Number(r.count)]));
+
+  const result = allSubs.map(s => {
+    const daysSinceAdded = (Date.now() - new Date(s.addedAt).getTime()) / (24 * 60 * 60 * 1000);
+    const windowDays = Math.max(1, Math.min(30, daysSinceAdded));
+    const count = alertMap.get(s.name) ?? 0;
+    return {
+      name: s.name,
+      subscriberCount: holderCountMap.get(s.name) ?? 0,
+      avgNotifiedPerDay: Math.trunc((count / windowDays) * 10) / 10,
+    };
+  });
+
+  return c.json(result);
 });
 
 // GET /api/subreddits/:name/stats
