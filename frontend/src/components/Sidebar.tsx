@@ -1,22 +1,7 @@
 import React, { useState } from "react";
 
 export default function Sidebar({ subreddits, activeTab, onSwitch, onAdd, stackCounts, countdown, lastRefresh, view, onViewMonitors, onViewHolders, onViewNotifications, onViewSubreddits, onViewAlerts, alertCount, onViewAddUsers, onViewAllEdits, onLogout }: any) {
-  const [input,      setInput]      = useState("");
-  const [err,        setErr]        = useState("");
-  const [busy,       setBusy]       = useState(false);
-
-  async function handleAdd() {
-    const clean = input.replace(/^r\//, "").trim().toLowerCase();
-    if (!clean) return;
-    setBusy(true); setErr("");
-    try {
-      await onAdd(clean);
-      setInput("");
-    } catch (e: any) {
-      setErr(e.message);
-      setTimeout(() => setErr(""), 3000);
-    } finally { setBusy(false); }
-  }
+  const [search, setSearch] = useState("");
 
   return (
     <div style={{ width:236, borderRight:"1px solid #1A1D2E", display:"flex", flexDirection:"column", height:"100%", flexShrink:0 }}>
@@ -28,27 +13,18 @@ export default function Sidebar({ subreddits, activeTab, onSwitch, onAdd, stackC
         </div>
       </div>
 
-      {/* Add */}
+      {/* Search */}
       <div style={{ padding:"12px 12px 8px" }}>
         <div style={{ fontSize:9, color:"#6B7280", letterSpacing:"1px", marginBottom:8, fontWeight:500 }}>SUBREDDITS</div>
-        <div style={{ display:"flex", gap:6 }}>
-          <input value={input} onChange={(e: any) => setInput(e.target.value)}
-            onKeyDown={(e: any) => e.key === "Enter" && handleAdd()}
-            placeholder="r/subreddit"
-            style={{ flex:1, background:"#111318", border:`1px solid ${err?"#EF4444":"#1F2937"}`, borderRadius:6, padding:"7px 9px", fontSize:11, color:"#E5E7EB", outline:"none" }}
-          />
-          <button onClick={handleAdd} disabled={busy}
-            style={{ background:"#1F2937", border:"none", borderRadius:6, width:28, cursor:"pointer", color:"#9CA3AF", fontSize:18, transition:"background 0.15s" }}
-            onMouseEnter={(e: any) => e.target.style.background="#FF4500"}
-            onMouseLeave={(e: any) => e.target.style.background="#1F2937"}
-          >{busy ? "…" : "+"}</button>
-        </div>
-        {err && <div style={{ fontSize:10, color:"#EF4444", marginTop:4 }}>{err}</div>}
+        <input value={search} onChange={(e: any) => setSearch(e.target.value)}
+          placeholder="Search…"
+          style={{ width:"100%", background:"#111318", border:"1px solid #1F2937", borderRadius:6, padding:"7px 9px", fontSize:11, color:"#E5E7EB", outline:"none", boxSizing:"border-box" }}
+        />
       </div>
 
       {/* List */}
       <div style={{ flex:1, overflowY:"auto", padding:"0 8px" }}>
-        {subreddits.map((sub: any) => {
+        {subreddits.filter((sub: any) => (sub.name ?? sub).includes(search.toLowerCase())).map((sub: any) => {
           const name     = sub.name ?? sub;
           const isActive = activeTab === name && view === "tracker";
           return (
