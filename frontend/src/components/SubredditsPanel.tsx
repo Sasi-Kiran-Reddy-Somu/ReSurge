@@ -209,6 +209,8 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
   const [search, setSearch] = useState("");
   const [counts, setCounts] = useState<Record<string, { s1: number; s2: number; s3: number }>>({});
   const [bulkStats, setBulkStats] = useState<Record<string, { subscriberCount: number; avgNotifiedPerDay: number }>>({});
+  const [sortCol, setSortCol] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<1 | -1>(1);
 
   // Keep in sync when parent prop changes
   useEffect(() => { setSubs(initialSubs ?? []); }, [initialSubs]);
@@ -242,7 +244,30 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
     return () => clearInterval(interval);
   }, [subs, refreshCounts]);
 
-  const filtered = subs.filter((s: any) => s.name.includes(search.toLowerCase()));
+  function toggleSort(col: string) {
+    if (sortCol === col) setSortDir(d => d === 1 ? -1 : 1);
+    else { setSortCol(col); setSortDir(-1); } // default desc
+  }
+
+  function getSortVal(sub: any, col: string) {
+    const c = counts[sub.name]; const bs = bulkStats[sub.name];
+    if (col === "name") return sub.name;
+    if (col === "s1") return c?.s1 ?? -1;
+    if (col === "s2") return c?.s2 ?? -1;
+    if (col === "s3") return c?.s3 ?? -1;
+    if (col === "subscribers") return bs?.subscriberCount ?? -1;
+    if (col === "avg") return bs?.avgNotifiedPerDay ?? -1;
+    return 0;
+  }
+
+  const filtered = subs
+    .filter((s: any) => s.name.includes(search.toLowerCase()))
+    .sort((a: any, b: any) => {
+      if (!sortCol) return 0;
+      const av = getSortVal(a, sortCol); const bv = getSortVal(b, sortCol);
+      if (typeof av === "string") return sortDir * av.localeCompare(bv);
+      return sortDir * ((av as number) - (bv as number));
+    });
 
   async function handleAdd() {
     const names = input
@@ -341,12 +366,22 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead style={{ position: "sticky", top: 0, zIndex: 10, background: C.bg }}>
               <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                <th style={{ textAlign: "left", fontSize: 10, color: C.muted, fontWeight: 600, letterSpacing: "0.08em", padding: "14px 0 10px 16px" }}>SUBREDDIT</th>
-                <th style={{ textAlign: "center", fontSize: 10, color: "#6B7280", fontWeight: 600, letterSpacing: "0.08em", padding: "14px 0 10px" }}>S1</th>
-                <th style={{ textAlign: "center", fontSize: 10, color: "#3B82F6", fontWeight: 600, letterSpacing: "0.08em", padding: "14px 0 10px" }}>S2</th>
-                <th style={{ textAlign: "center", fontSize: 10, color: "#F59E0B", fontWeight: 600, letterSpacing: "0.08em", padding: "14px 0 10px" }}>S3</th>
-                <th style={{ textAlign: "center", fontSize: 10, color: C.blue, fontWeight: 600, letterSpacing: "0.08em", padding: "14px 12px 10px" }}>SUBSCRIBERS</th>
-                <th style={{ textAlign: "center", fontSize: 10, color: C.amber, fontWeight: 600, letterSpacing: "0.08em", padding: "14px 16px 10px 0" }}>AVG NOTIFS/DAY</th>
+                {([
+                  ["name",        "SUBREDDIT",      C.muted,  "left",   "14px 0 10px 16px"],
+                  ["s1",          "S1",             "#6B7280", "center", "14px 0 10px"],
+                  ["s2",          "S2",             "#3B82F6", "center", "14px 0 10px"],
+                  ["s3",          "S3",             "#F59E0B", "center", "14px 0 10px"],
+                  ["subscribers", "SUBSCRIBERS",    C.blue,   "center", "14px 12px 10px"],
+                  ["avg",         "AVG NOTIFS/DAY", C.amber,  "center", "14px 16px 10px 0"],
+                ] as const).map(([col, label, color, align, padding]) => {
+                  const active = sortCol === col;
+                  return (
+                    <th key={col} onClick={() => toggleSort(col)}
+                      style={{ textAlign: align as any, fontSize: 10, color: active ? C.text : color, fontWeight: 600, letterSpacing: "0.08em", padding, cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                      {label}{active ? (sortDir === -1 ? " ↓" : " ↑") : ""}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
