@@ -200,14 +200,13 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
       />
 
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-        {view === "add-users" ? <AddUsersPanel /> :
+        {view === "add-users" ? <AddUsersPanel onSelectHolder={(h: any) => { setSelectedHolder(h); changeView("holders"); }} onAckChange={loadAlertCount} /> :
          view === "monitors" ? <MonitorPanel /> :
          view === "holders" ? (
            selectedHolder
              ? <HolderDetail holder={selectedHolder} onBack={() => setSelectedHolder(null)} />
              : <HoldersPanel onSelectHolder={(h: any) => setSelectedHolder(h)} />
          ) :
-         view === "alerts" ? <AlertsPanel onSelectHolder={(h: any) => { setSelectedHolder(h); setView("holders"); sessionStorage.setItem("main_view", "holders"); }} onAckChange={loadAlertCount} /> :
          view === "notifications" ? <AllNotifications /> :
          view === "all-edits" ? <AllEdits /> :
          view === "subreddits" ? <SubredditsPanel subreddits={subreddits} onSubredditRemoved={removeSubreddit} onSubredditAdded={(s: any) => addSubreddit(s.name).catch(()=>{})} showToast={showToast} /> : (
@@ -595,6 +594,8 @@ function HoldersOverviewM({ holders, onSelect }: any) {
   );
 }
 
+const TONES = ["Witty","Empathetic","Informative","Casual","Enthusiastic","Controversial","Professional","Humorous","Supportive"];
+
 function PostPopupM({ notif, onClose, onAction }: any) {
   const [comment, setComment] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -602,7 +603,9 @@ function PostPopupM({ notif, onClose, onAction }: any) {
   const [showPaste, setShowPaste] = useState(false);
   const [link, setLink] = useState("");
   const [err, setErr] = useState("");
-  async function generate() { setLoading(true); setErr(""); try { const c = (await reqM("POST", `/posts/${notif.postId}/generate-comment`)).comment; setComment(c); } catch (e: any) { setErr(e.message); } finally { setLoading(false); } }
+  const [tone, setTone] = useState("");
+  const [customPrompt, setCustomPrompt] = useState("");
+  async function generate(cp?: string) { setLoading(true); setErr(""); try { const c = (await reqM("POST", `/posts/${notif.postId}/generate-comment`, { tone: tone || undefined, customPrompt: cp || undefined })).comment; setComment(c); } catch (e: any) { setErr(e.message); } finally { setLoading(false); } }
   async function copy() { await navigator.clipboard.writeText(comment); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 32 }}>
@@ -614,9 +617,33 @@ function PostPopupM({ notif, onClose, onAction }: any) {
           </div>
           <button onClick={onClose} style={{ background: "none", border: `1px solid ${C_M.border}`, color: C_M.muted, cursor: "pointer", fontSize: 18, borderRadius: 8, width: 36, height: 36, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
         </div>
-        {!comment && <button onClick={generate} disabled={loading} style={{ ...btnM(loading ? "#1E3A5F" : C_M.accent, "#fff"), width: "100%", padding: "14px", marginBottom: 16, fontSize: 14 }}>{loading ? "Generating..." : "✨ Generate Comment"}</button>}
+        {!comment && (<>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 10, color: C_M.muted, letterSpacing: "0.08em", marginBottom: 8 }}>SELECT TONE (optional)</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7 }}>
+              {TONES.map(t => (
+                <button key={t} onClick={() => setTone(tone === t ? "" : t)}
+                  style={{ background: tone === t ? "#0D1626" : "#111318", border: `1px solid ${tone === t ? C_M.accent : "#1F2937"}`, borderRadius: 8, padding: "9px 6px", fontSize: 12, color: tone === t ? C_M.accent : C_M.muted, cursor: "pointer", fontFamily: "inherit", fontWeight: tone === t ? 600 : 400, transition: "all 0.12s" }}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button onClick={() => generate()} disabled={loading} style={{ ...btnM(loading ? "#1E3A5F" : C_M.accent, "#fff"), width: "100%", padding: "14px", marginBottom: 16, fontSize: 14 }}>{loading ? "Generating..." : "✨ Generate Comment"}</button>
+        </>)}
         {err && <div style={{ color: C_M.red, fontSize: 13, marginBottom: 12 }}>{err}</div>}
-        {comment && <div style={{ background: "#080B12", border: `1px solid #1E3A5F`, borderRadius: 12, padding: 22, marginBottom: 20 }}><p style={{ margin: "0 0 16px", fontSize: 14, color: "#D1D5DB", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{comment}</p><div style={{ display: "flex", gap: 10 }}><button onClick={() => { setComment(null); generate(); }} style={btnM("#1F2937", C_M.sub)}>↺ Regenerate</button><button onClick={copy} style={btnM(copied ? "#064E3B" : "#1F2937", copied ? C_M.green : C_M.sub)}>{copied ? "✓ Copied!" : "Copy Text"}</button></div></div>}
+        {comment && <div style={{ background: "#080B12", border: `1px solid #1E3A5F`, borderRadius: 12, padding: 22, marginBottom: 20 }}>
+          <p style={{ margin: "0 0 16px", fontSize: 14, color: "#D1D5DB", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{comment}</p>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <input value={customPrompt} onChange={(e: any) => setCustomPrompt(e.target.value)} placeholder="Add instruction to customize… e.g. make it shorter, add a question"
+              style={{ flex: 1, background: "#0A0C12", border: "1px solid #1F2937", borderRadius: 6, padding: "7px 10px", fontSize: 12, color: "#E5E7EB", outline: "none", fontFamily: "inherit" }} />
+            <button onClick={() => { const cp = customPrompt; setCustomPrompt(""); generate(cp); }} disabled={loading}
+              style={{ ...btnM("#1E3A5F", C_M.accent), flexShrink: 0, whiteSpace: "nowrap" }}>↺ Regenerate</button>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={copy} style={btnM(copied ? "#064E3B" : "#1F2937", copied ? C_M.green : C_M.sub)}>{copied ? "✓ Copied!" : "Copy Text"}</button>
+          </div>
+        </div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
           <button onClick={() => window.open(notif.postUrl, "_blank")} style={btnM("#1A1D2E", C_M.sub, { border: `1px solid ${C_M.border}` })}>Open Post ↗</button>
           <button onClick={() => setShowPaste((v: boolean) => !v)} style={btnM("#064E3B", C_M.green)}>Paste Link</button>
@@ -1063,7 +1090,7 @@ const holderApi = {
   getNotification:  (id: any)       => reqH("GET",  `/holder/notifications/${id}`),
   markPosted:       (id: any, link: string) => reqH("PUT",  `/holder/notifications/${id}/posted`, { postedLink: link }),
   markDone:         (id: any)       => reqH("PUT",  `/holder/notifications/${id}/done`),
-  generateComment:  (postId: any)   => reqH("POST", `/posts/${postId}/generate-comment`),
+  generateComment:  (postId: any, tone?: string, customPrompt?: string) => reqH("POST", `/posts/${postId}/generate-comment`, { tone, customPrompt }),
   getAccounts:      ()              => reqH("GET",  "/holder/accounts"),
   addAccount:       (data: any)     => reqH("POST", "/holder/accounts", data),
   updateAccount:    (id: any, data: any) => reqH("PUT", `/holder/accounts/${id}`, data),
@@ -1201,7 +1228,9 @@ function PostPopupH({ notif, cachedComment, onCommentCached, onClose, onAction }
   const [showPaste, setShowPaste] = useState(false);
   const [link, setLink] = useState("");
   const [err, setErr] = useState("");
-  async function generate() { setLoading(true); setErr(""); try { const c = (await holderApi.generateComment(notif.postId)).comment; setComment(c); if (onCommentCached) onCommentCached(c); } catch(e: any) { setErr(e.message); } finally { setLoading(false); } }
+  const [tone, setTone] = useState("");
+  const [customPrompt, setCustomPrompt] = useState("");
+  async function generate(cp?: string) { setLoading(true); setErr(""); try { const c = (await holderApi.generateComment(notif.postId, tone || undefined, cp || undefined)).comment; setComment(c); if (onCommentCached) onCommentCached(c); } catch(e: any) { setErr(e.message); } finally { setLoading(false); } }
   async function copy() { await navigator.clipboard.writeText(comment); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:32}}>
@@ -1213,9 +1242,33 @@ function PostPopupH({ notif, cachedComment, onCommentCached, onClose, onAction }
           </div>
           <button onClick={onClose} style={{background:"none",border:`1px solid ${C_H.border}`,color:C_H.muted,cursor:"pointer",fontSize:18,borderRadius:8,width:36,height:36,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:"1"}}>×</button>
         </div>
-        {!comment && <button onClick={generate} disabled={loading} style={{...btnH(loading?"#78350F":C_H.accent,loading?"#FCD34D":"#000"),width:"100%",padding:"14px",marginBottom:16,fontSize:14}}>{loading?"Generating...":"✨ Generate Comment"}</button>}
+        {!comment && (<>
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:10,color:C_H.muted,letterSpacing:"0.08em",marginBottom:8}}>SELECT TONE (optional)</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7}}>
+              {TONES.map(t => (
+                <button key={t} onClick={() => setTone(tone === t ? "" : t)}
+                  style={{background:tone===t?"#1C1400":"#111318",border:`1px solid ${tone===t?C_H.accent:"#2A1F00"}`,borderRadius:8,padding:"9px 6px",fontSize:12,color:tone===t?C_H.accent:C_H.muted,cursor:"pointer",fontFamily:"inherit",fontWeight:tone===t?600:400,transition:"all 0.12s"}}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button onClick={() => generate()} disabled={loading} style={{...btnH(loading?"#78350F":C_H.accent,loading?"#FCD34D":"#000"),width:"100%",padding:"14px",marginBottom:16,fontSize:14}}>{loading?"Generating...":"✨ Generate Comment"}</button>
+        </>)}
         {err && <div style={{color:C_H.red,fontSize:13,marginBottom:12}}>{err}</div>}
-        {comment && <div style={{background:"#080B12",border:`1px solid #1E3A5F`,borderRadius:12,padding:22,marginBottom:20}}><p style={{margin:"0 0 16px",fontSize:14,color:"#D1D5DB",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{comment}</p><div style={{display:"flex",gap:10}}><button onClick={() => { setComment(null); generate(); }} style={btnH("#1F2937",C_H.sub)}>↺ Regenerate</button><button onClick={copy} style={btnH(copied?"#064E3B":"#1F2937",copied?C_H.green:C_H.sub)}>{copied?"✓ Copied!":"Copy Text"}</button></div></div>}
+        {comment && <div style={{background:"#080B12",border:`1px solid #1E3A5F`,borderRadius:12,padding:22,marginBottom:20}}>
+          <p style={{margin:"0 0 16px",fontSize:14,color:"#D1D5DB",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{comment}</p>
+          <div style={{display:"flex",gap:8,marginBottom:12}}>
+            <input value={customPrompt} onChange={(e: any) => setCustomPrompt(e.target.value)} placeholder="Add instruction to customize… e.g. make it shorter, add a question"
+              style={{flex:1,background:"#0A0C12",border:"1px solid #2A1F00",borderRadius:6,padding:"7px 10px",fontSize:12,color:"#E5E7EB",outline:"none",fontFamily:"inherit"}} />
+            <button onClick={() => { const cp = customPrompt; setCustomPrompt(""); generate(cp); }} disabled={loading}
+              style={{...btnH("#1C1400",C_H.accent),flexShrink:0,whiteSpace:"nowrap"}}>↺ Regenerate</button>
+          </div>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={copy} style={btnH(copied?"#064E3B":"#1F2937",copied?C_H.green:C_H.sub)}>{copied?"✓ Copied!":"Copy Text"}</button>
+          </div>
+        </div>}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
           <button onClick={() => window.open(notif.postUrl,"_blank")} style={btnH("#1A1D2E",C_H.sub,{border:`1px solid ${C_H.border}`})}>Open Post ↗</button>
           <button onClick={() => setShowPaste(v => !v)} style={btnH("#064E3B",C_H.green)}>Paste Link</button>

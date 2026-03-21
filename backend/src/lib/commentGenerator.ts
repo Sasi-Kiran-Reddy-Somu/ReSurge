@@ -28,7 +28,7 @@ export async function generateComment(post: {
   title: string;
   selftext: string;
   url: string;
-}): Promise<string> {
+}, tone?: string, customPrompt?: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
 
@@ -43,6 +43,9 @@ export async function generateComment(post: {
     ? `\n\nPost body:\n${post.selftext.slice(0, 800)}`
     : "";
 
+  const toneInstruction = tone ? `- Write in a ${tone} tone.\n` : "";
+  const customInstruction = customPrompt ? `\nAdditional instruction: ${customPrompt}` : "";
+
   const prompt = `You are a regular Reddit user in r/${post.subreddit}. Write ONE comment replying to the post below.
 
 Post title: ${post.title}${postBody}${commentsContext}
@@ -50,7 +53,7 @@ Post title: ${post.title}${postBody}${commentsContext}
 Rules — follow every single one:
 - Sound like a real human, not AI. Write how people actually talk on Reddit.
 - Match the tone, vocabulary, and energy of the existing comments and subreddit.
-- Add genuine value: a useful insight, experience, question, or opinion that fits the conversation.
+${toneInstruction}- Add genuine value: a useful insight, experience, question, or opinion that fits the conversation.
 - Use natural shortcuts and casual language: gonna, tbh, ngl, imo, lol, idk, bc, cuz, rn, kinda, tbf, fr, etc. — but only where they feel natural, don't force them.
 - Vary your sentence length. Mix short punchy lines with slightly longer ones.
 - No bold text. No italic text. No bullet points. No numbered lists. No headers.
@@ -60,7 +63,7 @@ Rules — follow every single one:
 - Never use AI giveaway words: certainly, absolutely, great question, I'd be happy to, of course, indeed, it's worth noting, it's important to, comprehensive, delve, foster, utilize, leverage, in conclusion.
 - Don't sound like you're trying too hard to be casual — just be natural.
 - Keep it concise: 2-4 sentences is usually enough. Don't pad it out.
-- Output only the comment text. Nothing else.`;
+- Output only the comment text. Nothing else.${customInstruction}`;
 
   const response = await client.chat.completions.create({
     model: "gpt-4o",

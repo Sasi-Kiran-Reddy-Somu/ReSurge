@@ -61,8 +61,14 @@ export default function AllNotifications() {
     return true;
   });
 
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(0);
+
+  // Reset to first page when filters change
+  useEffect(() => { setPage(0); }, [search, time, status, sub, fromDate, toDate]);
+
   const timeBtns = [
-    ["all","All time"], ["today","Today"], ["week","7d"], ["month","30d"], ["custom","Custom"],
+    ["all","All time"], ["today","Today"], ["custom","Custom"],
   ];
   const statusBtns = [
     { k:"all", l:"All", c:"#F9FAFB" },
@@ -140,7 +146,7 @@ export default function AllNotifications() {
           <div style={{ border:"1px dashed #1F2937", borderRadius:10, padding:"48px 20px", textAlign:"center" }}>
             <div style={{ fontSize:28, marginBottom:10 }}>📂</div>
             <div style={{ fontSize:12, color:"#6B7280" }}>
-              {posts.length === 0 ? "No posts have reached Stack 4 yet." : "No results match your filters."}
+              {posts.length === 0 ? "No posts have reached Stack 3 yet." : "No results match your filters."}
             </div>
           </div>
         ) : (
@@ -150,7 +156,7 @@ export default function AllNotifications() {
                 <div key={h} style={{ fontSize:10, color:"#6B7280", fontWeight:700, letterSpacing:"0.05em" }}>{h}</div>
               ))}
             </div>
-            {visible.map((p: any) => (
+            {visible.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((p: any) => (
               <div key={p.id}
                 style={{ display:"grid", gridTemplateColumns:"120px 100px 1fr 80px 70px 70px 80px", gap:12, padding:"13px 18px", borderBottom:"1px solid #111318", alignItems:"center", transition:"background 0.1s" }}
                 onMouseEnter={(e: any) => e.currentTarget.style.background="#13161F"}
@@ -183,6 +189,21 @@ export default function AllNotifications() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        {visible.length > PAGE_SIZE && (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, padding:"16px 0" }}>
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}
+              style={{ background:"#1F2937", color: page === 0 ? "#374151":"#9CA3AF", border:"1px solid #374151", borderRadius:6, padding:"7px 16px", fontSize:11, cursor: page === 0 ? "default":"pointer", fontFamily:"inherit" }}>
+              Prev
+            </button>
+            <span style={{ fontSize:11, color:"#6B7280" }}>
+              Page {page + 1} of {Math.ceil(visible.length / PAGE_SIZE)}
+            </span>
+            <button onClick={() => setPage(p => Math.min(Math.ceil(visible.length / PAGE_SIZE) - 1, p + 1))} disabled={page >= Math.ceil(visible.length / PAGE_SIZE) - 1}
+              style={{ background:"#1F2937", color: page >= Math.ceil(visible.length / PAGE_SIZE) - 1 ? "#374151":"#9CA3AF", border:"1px solid #374151", borderRadius:6, padding:"7px 16px", fontSize:11, cursor: page >= Math.ceil(visible.length / PAGE_SIZE) - 1 ? "default":"pointer", fontFamily:"inherit" }}>
+              Next
+            </button>
           </div>
         )}
       </div>

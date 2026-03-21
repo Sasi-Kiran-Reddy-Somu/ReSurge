@@ -71,8 +71,12 @@ postRoutes.post("/:id/generate-comment", async (c) => {
   const [post] = await db.select().from(posts).where(eq(posts.id, id)).limit(1);
   if (!post) return c.json({ error: "Post not found" }, 404);
 
+  const body = await c.req.json().catch(() => ({}));
+  const tone: string | undefined = body.tone || undefined;
+  const customPrompt: string | undefined = body.customPrompt || undefined;
+
   try {
-    const comment = await generateComment(post);
+    const comment = await generateComment(post, tone, customPrompt);
 
     await db.insert(generatedComments).values({
       postId:      post.id,
