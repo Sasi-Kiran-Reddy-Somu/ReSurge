@@ -104,7 +104,10 @@ export default function HoldersPanel({ onSelectHolder }: { onSelectHolder?: (h: 
                 style={{ display:"grid", gridTemplateColumns:"2fr 2fr 1.5fr 1fr 1fr", gap:16, padding:"13px 20px", borderBottom:"1px solid #1F293718", cursor: onSelectHolder ? "pointer" : "default", transition:"background 0.1s", alignItems:"center" }}
                 onMouseEnter={(e: any) => { if (onSelectHolder) e.currentTarget.style.background="#13161F"; }}
                 onMouseLeave={(e: any) => { e.currentTarget.style.background="transparent"; }}>
-                <div style={{ fontSize:14, fontWeight:600, color:"#F9FAFB" }}>{h.name}</div>
+                <div style={{ fontSize:14, fontWeight:600, color:"#F9FAFB", display:"flex", alignItems:"center", gap:8 }}>
+                  {h.name}
+                  {h.isMonitor && <span style={{ fontSize:10, fontWeight:700, color:"#93C5FD", background:"#0D1626", border:"1px solid #1E3A5F", borderRadius:6, padding:"2px 7px", letterSpacing:"0.04em" }}>MONITOR</span>}
+                </div>
                 <div style={{ fontSize:12, color:"#6B7280" }}>{h.email}</div>
                 <div style={{ fontSize:12, color: h.monitorName ? "#93C5FD" : "#374151", fontStyle: h.monitorName ? "normal" : "italic" }}>
                   {h.monitorName ?? "unassigned"}

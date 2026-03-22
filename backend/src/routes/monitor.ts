@@ -17,8 +17,8 @@ monitorRoutes.get("/holders", async (c) => {
 
   let holderIds: string[];
   if (role === "main") {
-    // Use roles array check so multi-role users (holder + monitor) are included
-    const all = await db.select().from(users).where(sql`'holder' = ANY(${users.roles})`);
+    // Include users with holder OR monitor role
+    const all = await db.select().from(users).where(sql`('holder' = ANY(${users.roles}) OR 'monitor' = ANY(${users.roles}))`);
     holderIds = all.map((u) => u.id);
   } else {
     const assignments = await db.select().from(monitorAssignments).where(eq(monitorAssignments.monitorId, monitorId));
@@ -58,6 +58,7 @@ monitorRoutes.get("/holders", async (c) => {
       totalNotifications: notifs.length,
       converted,
       monitorName,
+      isMonitor: Array.isArray(user.roles) && user.roles.includes("monitor"),
     };
   }));
 
