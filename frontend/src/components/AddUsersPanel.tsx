@@ -32,11 +32,11 @@ async function req(method: string, path: string, body?: any) {
   return json;
 }
 
-const ROLE_COLORS: any = { monitor: C.blue, holder: "#14B8A6", main: "#FF4500" };
+const ROLE_COLORS: any = { monitor: C.blue, holder: "#F59E0B", main: "#A78BFA" };
 const ROLE_LABELS: any = { monitor: "Monitor", holder: "Holder", main: "Admin" };
 const ROLE_OPTIONS = ["holder", "monitor", "main"];
 
-const STATUS_COLOR: any  = { invited: C.amber, active: C.green, inactive: C.orange, deleted: C.muted };
+const STATUS_COLOR: any  = { invited: C.amber, active: C.green, inactive: C.red, deleted: C.muted };
 const STATUS_LABEL: any  = { invited: "INVITED", active: "ACTIVE", inactive: "INACTIVE", deleted: "DELETED" };
 
 function timeAgo(ts: any) {
@@ -282,8 +282,8 @@ export default function UsersPanel({ onSelectHolder, onAckChange }: { onSelectHo
     }
   }
 
-  const ROLE_BG: any = { holder: "#071A0A", monitor: "#0D1626", main: "#1C0800" };
-  const ROLE_COLOR: any = { holder: "#22C55E", monitor: "#3B82F6", main: "#FF4500" };
+  const ROLE_BG: any = { holder: "#1C1200", monitor: "#0D1626", main: "#1A1030" };
+  const ROLE_COLOR: any = { holder: "#F59E0B", monitor: "#3B82F6", main: "#A78BFA" };
 
   const inp: any = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 14px", color: C.text, fontFamily: "inherit", fontSize: 13, outline: "none" };
 
