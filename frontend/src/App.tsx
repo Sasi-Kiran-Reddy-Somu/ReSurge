@@ -14,6 +14,7 @@ import { api }               from "./utils/api";
 import SubredditsPanel  from "./components/SubredditsPanel";
 import AlertsPanel     from "./components/AlertsPanel";
 import AddUsersPanel   from "./components/AddUsersPanel";
+import LeaderboardPanel from "./components/LeaderboardPanel";
 
 // ─────────────────────────────────────────────────────────────
 // Shared constants
@@ -198,11 +199,13 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
         alertCount={alertCount}
         onViewAddUsers={() => changeView("add-users")}
         onViewAllEdits={() => changeView("all-edits")}
+        onViewLeaderboard={() => changeView("leaderboard")}
         onLogout={onLogout}
       />
 
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-        {view === "add-users" ? <AddUsersPanel onSelectHolder={(h: any) => { setSelectedHolder(h); changeView("holders"); }} onAckChange={loadAlertCount} /> :
+        {view === "leaderboard" ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} /> :
+         view === "add-users" ? <AddUsersPanel onSelectHolder={(h: any) => { setSelectedHolder(h); changeView("holders"); }} onAckChange={loadAlertCount} /> :
          view === "monitors" ? (
            selectedMonitor
              ? selectedMonitorHolder
@@ -1067,6 +1070,15 @@ function MonitorDashboard({ user, onLogout, initialPostId }: any) {
         </div>
 
         <div style={{ borderTop: `1px solid ${C_M.border}`, padding: "8px 12px" }}>
+          <div onClick={() => setSection("leaderboard")}
+            style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 7, cursor: "pointer", marginBottom: 2, background: section === "leaderboard" ? "#071A0A" : "transparent", borderLeft: `2px solid ${section === "leaderboard" ? "#22C55E" : "transparent"}`, transition: "background 0.12s" }}
+            onMouseEnter={(e: any) => { if (section !== "leaderboard") e.currentTarget.style.background = "#111318"; }}
+            onMouseLeave={(e: any) => { if (section !== "leaderboard") e.currentTarget.style.background = "transparent"; }}>
+            <span style={{ width: 20, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: section === "leaderboard" ? "#22C55E" : "#6B7280" }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </span>
+            <span style={{ fontSize: 12, color: section === "leaderboard" ? "#22C55E" : "#9CA3AF", fontWeight: section === "leaderboard" ? 600 : 400, flex: 1 }}>Leaderboard</span>
+          </div>
           <div onClick={() => { setSection("holders"); setSelectedHolder(null); }}
             style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 7, cursor: "pointer", marginBottom: 2, background: section === "holders" ? "#0D1626" : "transparent", borderLeft: `2px solid ${section === "holders" ? C_M.accent : "transparent"}`, transition: "background 0.12s" }}
             onMouseEnter={(e: any) => { if (section !== "holders") e.currentTarget.style.background = "#111318"; }}
@@ -1105,7 +1117,9 @@ function MonitorDashboard({ user, onLogout, initialPostId }: any) {
         </div>
       </div>
 
-      {section === "accounts"
+      {section === "leaderboard"
+        ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} />
+        : section === "accounts"
         ? openAccId
           ? <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
               <div style={{ background: C_M.surface, borderBottom: `1px solid ${C_M.border}`, display: "flex", flexShrink: 0, padding: "0 32px" }}>
@@ -1633,6 +1647,10 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
         </div>
 
         <div style={{padding:"16px 20px",borderTop:`1px solid ${C_H.border}`}}>
+          <button onClick={() => setHolderMainTab("leaderboard")} style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:holderMainTab==="leaderboard"?"#071A0A":"none",border:`1px solid ${holderMainTab==="leaderboard"?"#22C55E40":C_H.border}`,borderRadius:7,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",marginBottom:8}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={holderMainTab==="leaderboard"?"#22C55E":C_H.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            <span style={{fontSize:12,color:holderMainTab==="leaderboard"?"#22C55E":C_H.sub,fontWeight:holderMainTab==="leaderboard"?600:400}}>Leaderboard</span>
+          </button>
           <button onClick={()=>setShowPauseH(true)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:isPausedH?"#0A1A10":"none",border:`1px solid ${isPausedH?"#065F46":C_H.border}`,borderRadius:7,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",marginBottom:8}}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={isPausedH?C_H.green:C_H.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
             <span style={{fontSize:12,color:isPausedH?C_H.green:C_H.sub,fontWeight:isPausedH?600:400}}>{isPausedH?`Paused · ${pauseTimeLeft(pausedUntilH!)||"resuming"}`:"Pause Notifications"}</span>
@@ -1642,7 +1660,9 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
         {showPauseH && <PauseModalShared isPaused={!!isPausedH} pausedUntil={pausedUntilH} onClose={()=>setShowPauseH(false)} accent={C_H.accent} onPause={async(h:number)=>{const d=await holderApi.pauseNotifications(h);setPausedUntilH(d.pausedUntil);}} onResume={async()=>{await holderApi.resumeNotifications();setPausedUntilH(null);}}/>}
       </div>
 
-      {openAccId
+      {holderMainTab === "leaderboard"
+        ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} />
+        : openAccId
         ? <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             <div style={{background:C_H.surface,borderBottom:`1px solid ${C_H.border}`,display:"flex",flexShrink:0,padding:"0 32px"}}>
               {[["notifications","Notifications"],["subreddits","Manage Subreddits"]].map(([key,label]) => {

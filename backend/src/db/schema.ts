@@ -152,6 +152,30 @@ export const thresholdEdits = pgTable("threshold_edits", {
   editedAt:  timestamp("edited_at").notNull().defaultNow(),
 });
 
+// ─── comment_scores (upvote tracking for posted comments) ──────
+export const commentScores = pgTable("comment_scores", {
+  id:             uuid("id").primaryKey().defaultRandom(),
+  notificationId: uuid("notification_id").notNull(),
+  score:          integer("score").notNull().default(0),
+  fetchedAt:      timestamp("fetched_at").notNull().defaultNow(),
+});
+
+// ─── leaderboard_cache (daily snapshot per user) ───────────────
+export const leaderboardCache = pgTable("leaderboard_cache", {
+  id:            uuid("id").primaryKey().defaultRandom(),
+  userId:        uuid("user_id").notNull().unique(),
+  name:          text("name").notNull(),
+  role:          text("role").notNull(),
+  totalPosted:   integer("total_posted").notNull().default(0),
+  totalUpvotes:  integer("total_upvotes").notNull().default(0),
+  last24hPosted: integer("last24h_posted").notNull().default(0),
+  avgPerDay:     real("avg_per_day").notNull().default(0),
+  upvoteRate:    real("upvote_rate").notNull().default(0),
+  activeDays:    integer("active_days").notNull().default(0),
+  firstPostedAt: timestamp("first_posted_at"),
+  updatedAt:     timestamp("updated_at").notNull().defaultNow(),
+});
+
 export type DbSubreddit          = typeof subreddits.$inferSelect;
 export type DbPost               = typeof posts.$inferSelect;
 export type DbThresholds         = typeof thresholds.$inferSelect;
@@ -160,3 +184,5 @@ export type DbUser               = typeof users.$inferSelect;
 export type DbNotification       = typeof notifications.$inferSelect;
 export type DbInvitedUser        = typeof invitedUsers.$inferSelect;
 export type DbThresholdEdit      = typeof thresholdEdits.$inferSelect;
+export type DbCommentScore       = typeof commentScores.$inferSelect;
+export type DbLeaderboardCache   = typeof leaderboardCache.$inferSelect;

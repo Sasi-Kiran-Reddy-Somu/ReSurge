@@ -16,6 +16,7 @@ import { authRoutes }      from "./routes/auth.js";
 import { holderRoutes }    from "./routes/holder.js";
 import { monitorRoutes }   from "./routes/monitor.js";
 import { adminRoutes }     from "./routes/admin.js";
+import { leaderboardRoutes } from "./routes/leaderboard.js";
 import { createPollWorker } from "./workers/pollWorker.js";
 import { ensureGlobalPollScheduled } from "./lib/queue.js";
 
@@ -55,6 +56,7 @@ app.route("/api/thresholds", thresholdRoutes);
 app.route("/api/holder",     holderRoutes);
 app.route("/api/monitor",    monitorRoutes);
 app.route("/api/admin",      adminRoutes);
+app.route("/api/leaderboard", leaderboardRoutes);
 
 app.get("/health", (c) => c.json({ status: "ok", ts: Date.now() }));
 
@@ -121,6 +123,37 @@ async function bootstrap() {
     console.log("✓ threshold_edits table ready");
   } catch (err) {
     console.error("threshold_edits table error:", (err as Error).message);
+  }
+
+  // Ensure leaderboard tables exist
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "comment_scores" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "notification_id" uuid NOT NULL,
+        "score" integer NOT NULL DEFAULT 0,
+        "fetched_at" timestamp NOT NULL DEFAULT now()
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "leaderboard_cache" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "user_id" uuid NOT NULL UNIQUE,
+        "name" text NOT NULL,
+        "role" text NOT NULL,
+        "total_posted" integer NOT NULL DEFAULT 0,
+        "total_upvotes" integer NOT NULL DEFAULT 0,
+        "last24h_posted" integer NOT NULL DEFAULT 0,
+        "avg_per_day" real NOT NULL DEFAULT 0,
+        "upvote_rate" real NOT NULL DEFAULT 0,
+        "active_days" integer NOT NULL DEFAULT 0,
+        "first_posted_at" timestamp,
+        "updated_at" timestamp NOT NULL DEFAULT now()
+      )
+    `);
+    console.log("✓ leaderboard tables ready");
+  } catch (err) {
+    console.error("leaderboard tables error:", (err as Error).message);
   }
 
   if (process.env.DISABLE_POLL_WORKER === "true") {
