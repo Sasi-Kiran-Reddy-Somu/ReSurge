@@ -85,6 +85,8 @@ export const users = pgTable("users", {
   roles:              text("roles").array().notNull().default([]), // all roles this account can use
   phone:              text("phone"),
   adminAcknowledged:        boolean("admin_acknowledged").notNull().default(true),
+  isActive:                 boolean("is_active").notNull().default(true),
+  isDeleted:                boolean("is_deleted").notNull().default(false),
   notificationsPausedUntil: bigint("notifications_paused_until", { mode: "number" }),
   createdAt:                timestamp("created_at").notNull().defaultNow(),
 });

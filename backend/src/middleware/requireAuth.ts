@@ -13,9 +13,11 @@ export async function requireAuth(c: Context<AppEnv>, next: Next) {
   const payload = verifyToken(token);
   if (!payload)  return c.json({ error: "Invalid token" }, 401);
 
-  // Verify user still exists (handles admin-deleted users)
-  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, payload.userId)).limit(1);
-  if (!user) return c.json({ error: "Account not found" }, 401);
+  // Verify user still exists and is active
+  const [user] = await db.select({ id: users.id, isActive: users.isActive, isDeleted: users.isDeleted }).from(users).where(eq(users.id, payload.userId)).limit(1);
+  if (!user) return c.json({ error: "Account not found", code: "ACCOUNT_DELETED" }, 401);
+  if (user.isDeleted) return c.json({ error: "This account has been deleted. Contact admin.", code: "ACCOUNT_DELETED" }, 401);
+  if (!user.isActive) return c.json({ error: "This account has been deactivated. Contact admin.", code: "ACCOUNT_DEACTIVATED" }, 401);
 
   c.set("userId", payload.userId);
   c.set("userRole", payload.role);

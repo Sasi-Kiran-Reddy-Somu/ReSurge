@@ -99,6 +99,9 @@ authRoutes.post("/google", async (c) => {
   const isNewSignup = !user;
 
   if (user) {
+    // Check account status before allowing login
+    if (user.isDeleted) return c.json({ error: "This account has been deleted. Contact admin." }, 403);
+    if (!user.isActive) return c.json({ error: "This account has been deactivated. Contact admin." }, 403);
     // Already registered — use their existing role(s), no invite needed
     const existingRoles = user.roles?.length ? user.roles : [user.role];
     role  = user.role;

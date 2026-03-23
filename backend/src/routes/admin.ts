@@ -190,28 +190,78 @@ adminRoutes.post("/alerts/ack-all", async (c) => {
 
 // ── All users ────────────────────────────────────────────────────────────────
 
-// GET /api/admin/users — all users (except current admin)
+// GET /api/admin/users — all users (existing, for backward compat)
 adminRoutes.get("/users", async (c) => {
   const all = await db.select().from(users).orderBy(desc(users.createdAt));
-  return c.json(all.map(u => ({ id: u.id, name: u.name, email: u.email, role: u.role, roles: u.roles, createdAt: u.createdAt })));
+  return c.json(all.map(u => ({ id: u.id, name: u.name, email: u.email, role: u.role, roles: u.roles, createdAt: u.createdAt, isActive: u.isActive, isDeleted: u.isDeleted })));
 });
 
-// PATCH /api/admin/users/:id — update role
+// GET /api/admin/all-users — unified list: pending invites + signed-up users
+adminRoutes.get("/all-users", async (c) => {
+  const [allUsers, allInvites] = await Promise.all([
+    db.select().from(users).orderBy(desc(users.createdAt)),
+    db.select().from(invitedUsers).orderBy(desc(invitedUsers.invitedAt)),
+  ]);
+  const userRows = allUsers.map(u => ({
+    type: "user" as const,
+    id: u.id, name: u.name, email: u.email,
+    role: u.role, roles: u.roles,
+    isActive: u.isActive, isDeleted: u.isDeleted,
+    status: u.isDeleted ? "deleted" : u.isActive ? "active" : "inactive",
+    date: u.createdAt,
+  }));
+  const inviteRows = allInvites.map(inv => ({
+    type: "invite" as const,
+    id: inv.id, name: null, email: inv.email,
+    role: inv.role, roles: [inv.role],
+    isActive: null, isDeleted: null,
+    status: "invited" as const,
+    date: inv.invitedAt,
+  }));
+  return c.json([...inviteRows, ...userRows]);
+});
+
+// PATCH /api/admin/users/:id — update role or status
 adminRoutes.patch("/users/:id", async (c) => {
   const id = c.req.param("id");
-  const { role } = await c.req.json();
+  const body = await c.req.json();
   const validRoles = ["main", "monitor", "holder"];
+
+  // Status change
+  if (body.action === "deactivate") {
+    const [user] = await db.update(users).set({ isActive: false }).where(eq(users.id, id)).returning();
+    if (!user) return c.json({ error: "User not found" }, 404);
+    return c.json({ ok: true, status: "inactive" });
+  }
+  if (body.action === "activate") {
+    const [user] = await db.update(users).set({ isActive: true, isDeleted: false }).where(eq(users.id, id)).returning();
+    if (!user) return c.json({ error: "User not found" }, 404);
+    return c.json({ ok: true, status: "active" });
+  }
+
+  // Role change
+  const { role } = body;
   if (!role || !validRoles.includes(role)) return c.json({ error: "Invalid role" }, 400);
   const [user] = await db.update(users).set({ role, roles: [role] }).where(eq(users.id, id)).returning();
   if (!user) return c.json({ error: "User not found" }, 404);
   return c.json({ id: user.id, email: user.email, name: user.name, role: user.role, roles: user.roles });
 });
 
-// DELETE /api/admin/users/:id — remove a user
+// DELETE /api/admin/users/:id — soft-delete (preserves data, blocks access)
 adminRoutes.delete("/users/:id", async (c) => {
   const id = c.req.param("id");
-  await db.delete(monitorAssignments).where(eq(monitorAssignments.monitorId, id));
-  await db.delete(users).where(eq(users.id, id));
+  await db.update(users).set({ isActive: false, isDeleted: true }).where(eq(users.id, id));
+  return c.json({ ok: true });
+});
+
+// POST /api/admin/users/:id/resend-invite — resend invite email to existing active user
+adminRoutes.post("/users/:id/resend-invite", async (c) => {
+  const id = c.req.param("id");
+  const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  if (!user) return c.json({ error: "User not found" }, 404);
+  sendInviteEmail({ toEmail: user.email, role: user.role }).catch(err => {
+    console.error("[resend invite email]", err.message);
+  });
   return c.json({ ok: true });
 });
 
@@ -258,6 +308,17 @@ adminRoutes.post("/invites", async (c) => {
   });
 
   return c.json(row);
+});
+
+// POST /api/admin/invites/:id/resend
+adminRoutes.post("/invites/:id/resend", async (c) => {
+  const id = c.req.param("id");
+  const [inv] = await db.select().from(invitedUsers).where(eq(invitedUsers.id, id)).limit(1);
+  if (!inv) return c.json({ error: "Invite not found" }, 404);
+  sendInviteEmail({ toEmail: inv.email, role: inv.role }).catch(err => {
+    console.error("[resend invite email]", err.message);
+  });
+  return c.json({ ok: true });
 });
 
 // DELETE /api/admin/invites/:id
