@@ -4,7 +4,8 @@ import { users, monitorAssignments, holderAccounts, invitedUsers } from "../db/s
 import { eq, sql, desc } from "drizzle-orm";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 import { hashPassword } from "../lib/auth.js";
-import { sendInviteEmail } from "../lib/emailer.js";
+import { sendInviteEmail, sendStack4Notification } from "../lib/emailer.js";
+import { signToken } from "../lib/auth.js";
 
 export const adminRoutes = new Hono();
 
@@ -329,4 +330,26 @@ adminRoutes.delete("/invites/:id", async (c) => {
   const id = c.req.param("id");
   await db.delete(invitedUsers).where(eq(invitedUsers.id, id));
   return c.json({ ok: true });
+});
+
+// POST /api/admin/test-email — send a test notification email to a given address
+adminRoutes.post("/test-email", async (c) => {
+  const { to } = await c.req.json();
+  if (!to) return c.json({ error: "to is required" }, 400);
+  const token = signToken({ userId: "test", role: "holder" });
+  try {
+    await sendStack4Notification({
+      toEmail:   to,
+      toName:    "Test User",
+      token,
+      postId:    "test-post-id",
+      postTitle: "Test post — email pipeline check",
+      postUrl:   "https://reddit.com",
+      subreddit: "test",
+      growth:    50,
+    });
+    return c.json({ ok: true, message: `Email sent to ${to}` });
+  } catch (err) {
+    return c.json({ ok: false, error: (err as Error).message }, 500);
+  }
 });
