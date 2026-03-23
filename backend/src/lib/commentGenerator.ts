@@ -72,8 +72,9 @@ Post title: ${post.title}${postBody}${commentsContext}
 Your comment must pass AI detection as 100% human-written. To achieve this, follow every rule below without exception:
 
 LENGTH & STRUCTURE:
-- 1 to 2 sentences MAX. Seriously, keep it short. Reddit comments are not essays.
-- No structure. No setup + punchline. Just a raw reaction, quick take, or short question.
+- Keep it short. Most good Reddit comments are 1–3 sentences. Only go longer if the post genuinely requires it.
+- Never pad. Say the one thing you need to say and stop. No buildup, no filler, no conclusion.
+- No structure. Just a raw reaction, quick take, or short question.
 - Fragments are fine. Incomplete sentences are fine. That's how people text.
 
 LANGUAGE & VOICE:

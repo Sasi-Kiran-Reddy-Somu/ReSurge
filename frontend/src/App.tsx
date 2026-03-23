@@ -41,7 +41,7 @@ function decodeJwt(t: string): any {
 // ─────────────────────────────────────────────────────────────
 function LoginGate({ onAuth }: { onAuth: (token: string, user: any, isNewSignup: boolean) => void }) {
   const btnRef = useRef<any>(null);
-  const [err,  setErr]  = useState("");
+  const [err,  setErr]  = useState(() => { const m = localStorage.getItem("auth_error"); if (m) { localStorage.removeItem("auth_error"); return m; } return ""; });
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -137,6 +137,8 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
   const [historyView,    setHistoryView]    = useState<null|"notifications"|"edits">(null);
   const [toast,          setToast]          = useState<any>(null);
   const [selectedHolder, setSelectedHolder] = useState<any>(null);
+  const [selectedMonitor, setSelectedMonitor] = useState<any>(null);
+  const [selectedMonitorHolder, setSelectedMonitorHolder] = useState<any>(null);
   const [alertCount,    setAlertCount]    = useState(0);
 
   function loadAlertCount() {
@@ -146,7 +148,7 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
       .catch(() => {});
   }
 
-  function changeView(v: string) { setView(v); sessionStorage.setItem("main_view", v); setSelectedHolder(null); }
+  function changeView(v: string) { setView(v); sessionStorage.setItem("main_view", v); setSelectedHolder(null); setSelectedMonitor(null); setSelectedMonitorHolder(null); }
 
   function showToast(msg: string) {
     const id = Date.now();
@@ -201,7 +203,13 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
         {view === "add-users" ? <AddUsersPanel onSelectHolder={(h: any) => { setSelectedHolder(h); changeView("holders"); }} onAckChange={loadAlertCount} /> :
-         view === "monitors" ? <MonitorPanel /> :
+         view === "monitors" ? (
+           selectedMonitor
+             ? selectedMonitorHolder
+               ? <HolderDetail holder={selectedMonitorHolder} onBack={() => setSelectedMonitorHolder(null)} />
+               : <MonitorDetail monitor={selectedMonitor} onBack={() => { setSelectedMonitor(null); setSelectedMonitorHolder(null); }} onSelectHolder={(h: any) => setSelectedMonitorHolder(h)} />
+             : <MonitorPanel onSelectMonitor={(m: any) => { setSelectedMonitor(m); setSelectedMonitorHolder(null); }} />
+         ) :
          view === "holders" ? (
            selectedHolder
              ? <HolderDetail holder={selectedHolder} onBack={() => setSelectedHolder(null)} />
@@ -345,10 +353,64 @@ async function reqM(method: string, path: string, body?: any) {
   try {
     const res = await fetch(`/api${path}`, { method, signal: ctrl.signal, headers: {"Content-Type":"application/json", ...(getTokenM() ? {Authorization:`Bearer ${getTokenM()}`} : {})}, body: body ? JSON.stringify(body) : undefined });
     clearTimeout(tid);
-    if (res.status === 401) { localStorage.removeItem("token"); localStorage.removeItem("user_data"); window.location.reload(); throw new Error("Session expired"); }
+    if (res.status === 401) { const j = await res.json().catch(() => ({})); if (j.code === "ACCOUNT_DELETED" || j.code === "ACCOUNT_DEACTIVATED") localStorage.setItem("auth_error", j.error ?? "Account access denied."); localStorage.removeItem("token"); localStorage.removeItem("user_data"); window.location.reload(); throw new Error(j.error ?? "Session expired"); }
     if (!res.ok) { const e = await res.json().catch(() => ({error: res.statusText})); throw new Error(e.error ?? "HTTP " + res.status); }
     return res.json();
   } catch(e: any) { clearTimeout(tid); if (e.name === "AbortError") throw new Error("Request timed out"); throw e; }
+}
+
+function MonitorDetail({ monitor, onBack, onSelectHolder }: any) {
+  const [holders, setHolders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    setLoading(true); setErr("");
+    Promise.all([
+      reqM("GET", `/admin/monitors/${monitor.id}/assignments`),
+      reqM("GET", "/admin/holders"),
+    ]).then(([assignments, allHolders]: any) => {
+      const assigned = allHolders.filter((h: any) => assignments.some((a: any) => a.holderId === h.id));
+      setHolders(assigned);
+    }).catch((e: any) => setErr(e.message || "Failed to load")).finally(() => setLoading(false));
+  }, [monitor.id]);
+
+  return (
+    <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:C_M.bg }}>
+      {/* Header */}
+      <div style={{ padding:"20px 32px", borderBottom:`1px solid ${C_M.border}`, display:"flex", alignItems:"center", gap:16, flexShrink:0, background:C_M.surface }}>
+        <button onClick={onBack} style={{ background:"#1F2937", border:"none", borderRadius:8, padding:"8px 14px", color:C_M.sub, cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:600 }}>← Back</button>
+        <div>
+          <div style={{ fontSize:20, fontWeight:800, color:C_M.text }}>{monitor.name}</div>
+          <div style={{ fontSize:12, color:C_M.muted, marginTop:2 }}>{monitor.email}</div>
+        </div>
+        <div style={{ marginLeft:"auto", background:"#0D1626", border:`1px solid #1E3A5F`, borderRadius:10, padding:"10px 20px", textAlign:"center" }}>
+          <div style={{ fontSize:22, fontWeight:800, color:"#93C5FD" }}>{holders.length}</div>
+          <div style={{ fontSize:10, color:C_M.dim, letterSpacing:"0.08em" }}>ASSIGNED HOLDERS</div>
+        </div>
+      </div>
+
+      {/* Holders list */}
+      <div style={{ flex:1, overflowY:"auto", padding:"24px 32px" }}>
+        <div style={{ fontSize:10, color:C_M.dim, fontWeight:700, letterSpacing:"0.1em", marginBottom:14 }}>HOLDERS — click to view details</div>
+        {loading && <div style={{ color:C_M.muted, fontSize:13 }}>Loading…</div>}
+        {err && <div style={{ color:C_M.red, fontSize:13 }}>{err}</div>}
+        {!loading && !err && holders.length === 0 && <div style={{ color:C_M.dim, fontSize:13 }}>No holders assigned to this monitor yet.</div>}
+        {!loading && holders.map((h: any) => (
+          <div key={h.id} onClick={() => onSelectHolder(h)}
+            style={{ background:C_M.surface, border:`1px solid ${C_M.border}`, borderRadius:10, padding:"16px 20px", marginBottom:10, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", transition:"background 0.1s" }}
+            onMouseEnter={(e: any) => e.currentTarget.style.background="#13161F"}
+            onMouseLeave={(e: any) => e.currentTarget.style.background=C_M.surface}>
+            <div>
+              <div style={{ fontSize:14, fontWeight:600, color:C_M.text, marginBottom:3 }}>{h.name}</div>
+              <div style={{ fontSize:12, color:C_M.muted }}>{h.email}</div>
+            </div>
+            <span style={{ fontSize:12, color:C_M.accent, fontWeight:600 }}>View →</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function HolderDetail({ holder, onBack }: any) {
@@ -515,14 +577,14 @@ function HolderDetail({ holder, onBack }: any) {
           {tableNotifs.length === 0
             ? <div style={{padding:"48px 0",textAlign:"center",color:C_M.dim,fontSize:14}}>No notifications match your filters.</div>
             : <div style={{background:C_M.surface,border:`1px solid ${C_M.border}`,borderRadius:12,overflow:"hidden"}}>
-                <div style={{display:"grid",gridTemplateColumns:"150px 1fr 110px 80px",gap:16,padding:"11px 20px",borderBottom:`1px solid ${C_M.border}`}}>
-                  {["DATE","POST","STATUS","LINK"].map(h => <div key={h} style={{fontSize:10,color:C_M.dim,fontWeight:700,letterSpacing:"0.08em"}}>{h}</div>)}
+                <div style={{display:"grid",gridTemplateColumns:"150px 1fr 110px",gap:16,padding:"11px 20px",borderBottom:`1px solid ${C_M.border}`}}>
+                  {[{h:"DATE",align:"left"},{h:"POST",align:"left"},{h:"STATUS",align:"center"}].map(({h,align}) => <div key={h} style={{fontSize:10,color:C_M.dim,fontWeight:700,letterSpacing:"0.08em",textAlign:align as any}}>{h}</div>)}
                 </div>
                 {tableNotifs.map((n: any) => {
                   const sc = n.status==="posted"?C_M.green:n.status==="opened"?C_M.accent:n.status==="done"?C_M.muted:C_M.amber;
-                  const sl = n.status==="sent"?"pending":n.status==="opened"?"viewed":n.status;
+                  const sl = n.status==="sent"?"sent":n.status==="opened"?"viewed":n.status;
                   return (
-                    <div key={n.id} style={{display:"grid",gridTemplateColumns:"150px 1fr 110px 80px",gap:16,padding:"14px 20px",borderBottom:`1px solid ${C_M.border}18`,alignItems:"center",transition:"background 0.1s"}}
+                    <div key={n.id} style={{display:"grid",gridTemplateColumns:"150px 1fr 110px",gap:16,padding:"14px 20px",borderBottom:`1px solid ${C_M.border}18`,alignItems:"center",transition:"background 0.1s"}}
                       onMouseEnter={(e: any) => e.currentTarget.style.background="#13161F"}
                       onMouseLeave={(e: any) => e.currentTarget.style.background="transparent"}>
                       <div>
@@ -531,10 +593,17 @@ function HolderDetail({ holder, onBack }: any) {
                       </div>
                       <div style={{minWidth:0}}>
                         <div style={{fontSize:11,color:C_M.muted,marginBottom:3}}>r/{n.subreddit}</div>
-                        <div style={{fontSize:13,color:C_M.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500}}>{n.postTitle}</div>
+                        {n.postUrl
+                          ? <a href={n.postUrl} target="_blank" rel="noreferrer" style={{fontSize:13,color:C_M.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500,display:"block",textDecoration:"none",cursor:"pointer"}} onMouseEnter={(e:any)=>e.currentTarget.style.color=C_M.accent} onMouseLeave={(e:any)=>e.currentTarget.style.color=C_M.text}>{n.postTitle}</a>
+                          : <div style={{fontSize:13,color:C_M.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:500}}>{n.postTitle}</div>
+                        }
                       </div>
-                      <span style={{fontSize:11,color:sc,background:sc+"18",padding:"4px 12px",borderRadius:20,textAlign:"center",fontWeight:600,display:"inline-block"}}>{sl}</span>
-                      <div>{n.postedLink ? <a href={n.postedLink} target="_blank" rel="noreferrer" style={{fontSize:11,color:C_M.green,fontWeight:600}}>↗ open</a> : <span style={{fontSize:11,color:C_M.dim}}>—</span>}</div>
+                      <div style={{textAlign:"center"}}>
+                        {n.status==="posted" && n.postedLink
+                          ? <a href={n.postedLink} target="_blank" rel="noreferrer" style={{fontSize:11,color:sc,background:sc+"18",padding:"4px 12px",borderRadius:20,fontWeight:600,textDecoration:"none",display:"inline-block",cursor:"pointer"}} onMouseEnter={(e:any)=>e.currentTarget.style.opacity="0.8"} onMouseLeave={(e:any)=>e.currentTarget.style.opacity="1"}>{sl} ↗</a>
+                          : <span style={{fontSize:11,color:sc,background:sc+"18",padding:"4px 12px",borderRadius:20,fontWeight:600,display:"inline-block"}}>{sl}</span>
+                        }
+                      </div>
                     </div>
                   );
                 })}
@@ -603,9 +672,10 @@ function PostPopupM({ notif, onClose, onAction }: any) {
   const [showPaste, setShowPaste] = useState(false);
   const [link, setLink] = useState("");
   const [err, setErr] = useState("");
-  const [tone, setTone] = useState("");
+  const [tones, setTones] = useState<string[]>([]);
   const [customPrompt, setCustomPrompt] = useState("");
-  async function generate(cp?: string) { setLoading(true); setErr(""); try { const c = (await reqM("POST", `/posts/${notif.postId}/generate-comment`, { tone: tone || undefined, customPrompt: cp || undefined })).comment; setComment(c); } catch (e: any) { setErr(e.message); } finally { setLoading(false); } }
+  function toggleTone(t: string) { setTones(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]); }
+  async function generate(cp?: string) { setLoading(true); setErr(""); try { const c = (await reqM("POST", `/posts/${notif.postId}/generate-comment`, { tone: tones.length ? tones.join(", ") : undefined, customPrompt: cp || undefined })).comment; setComment(c); } catch (e: any) { setErr(e.message); } finally { setLoading(false); } }
   async function copy() { await navigator.clipboard.writeText(comment); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 32 }}>
@@ -619,11 +689,11 @@ function PostPopupM({ notif, onClose, onAction }: any) {
         </div>
         {!comment && (<>
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 10, color: C_M.muted, letterSpacing: "0.08em", marginBottom: 8 }}>SELECT TONE (optional)</div>
+            <div style={{ fontSize: 10, color: C_M.muted, letterSpacing: "0.08em", marginBottom: 8 }}>SELECT TONE (optional, pick multiple)</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7 }}>
               {TONES.map(t => (
-                <button key={t} onClick={() => setTone(tone === t ? "" : t)}
-                  style={{ background: tone === t ? "#0D1626" : "#111318", border: `1px solid ${tone === t ? C_M.accent : "#1F2937"}`, borderRadius: 8, padding: "9px 6px", fontSize: 12, color: tone === t ? C_M.accent : C_M.muted, cursor: "pointer", fontFamily: "inherit", fontWeight: tone === t ? 600 : 400, transition: "all 0.12s" }}>
+                <button key={t} onClick={() => toggleTone(t)}
+                  style={{ background: tones.includes(t) ? "#0D1626" : "#111318", border: `1px solid ${tones.includes(t) ? C_M.accent : "#1F2937"}`, borderRadius: 8, padding: "9px 6px", fontSize: 12, color: tones.includes(t) ? C_M.accent : C_M.muted, cursor: "pointer", fontFamily: "inherit", fontWeight: tones.includes(t) ? 600 : 400, transition: "all 0.12s" }}>
                   {t}
                 </button>
               ))}
@@ -634,7 +704,11 @@ function PostPopupM({ notif, onClose, onAction }: any) {
         {err && <div style={{ color: C_M.red, fontSize: 13, marginBottom: 12 }}>{err}</div>}
         {comment && <div style={{ background: "#080B12", border: `1px solid #1E3A5F`, borderRadius: 12, padding: 22, marginBottom: 20 }}>
           <p style={{ margin: "0 0 16px", fontSize: 14, color: "#D1D5DB", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{comment}</p>
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, opacity: customPrompt ? 1 : 0.45, transition: "opacity 0.15s" }}
+            onMouseEnter={(e: any) => e.currentTarget.style.opacity="1"}
+            onMouseLeave={(e: any) => e.currentTarget.style.opacity= customPrompt ? "1" : "0.45"}
+            onFocusCapture={(e: any) => e.currentTarget.style.opacity="1"}
+            onBlurCapture={(e: any) => { if (!customPrompt) e.currentTarget.style.opacity="0.45"; }}>
             <input value={customPrompt} onChange={(e: any) => setCustomPrompt(e.target.value)} placeholder="Add instruction to customize… e.g. make it shorter, add a question"
               style={{ flex: 1, background: "#0A0C12", border: "1px solid #1F2937", borderRadius: 6, padding: "7px 10px", fontSize: 12, color: "#E5E7EB", outline: "none", fontFamily: "inherit" }} />
             <button onClick={() => { const cp = customPrompt; setCustomPrompt(""); generate(cp); }} disabled={loading}
@@ -1079,7 +1153,7 @@ async function reqH(method: string, path: string, body?: any) {
     headers: { "Content-Type": "application/json", ...(getTokenH() ? { Authorization: `Bearer ${getTokenH()}` } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (res.status === 401) { localStorage.removeItem("token"); localStorage.removeItem("user_data"); window.location.reload(); throw new Error("Session expired"); }
+  if (res.status === 401) { const j = await res.json().catch(() => ({})); if (j.code === "ACCOUNT_DELETED" || j.code === "ACCOUNT_DEACTIVATED") localStorage.setItem("auth_error", j.error ?? "Account access denied."); localStorage.removeItem("token"); localStorage.removeItem("user_data"); window.location.reload(); throw new Error(j.error ?? "Session expired"); }
   if (!res.ok) { const e = await res.json().catch(() => ({error: res.statusText})); throw new Error(e.error ?? "Request failed"); }
   return res.json();
 }
@@ -1228,9 +1302,10 @@ function PostPopupH({ notif, cachedComment, onCommentCached, onClose, onAction }
   const [showPaste, setShowPaste] = useState(false);
   const [link, setLink] = useState("");
   const [err, setErr] = useState("");
-  const [tone, setTone] = useState("");
+  const [tones, setTones] = useState<string[]>([]);
   const [customPrompt, setCustomPrompt] = useState("");
-  async function generate(cp?: string) { setLoading(true); setErr(""); try { const c = (await holderApi.generateComment(notif.postId, tone || undefined, cp || undefined)).comment; setComment(c); if (onCommentCached) onCommentCached(c); } catch(e: any) { setErr(e.message); } finally { setLoading(false); } }
+  function toggleToneH(t: string) { setTones(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]); }
+  async function generate(cp?: string) { setLoading(true); setErr(""); try { const c = (await holderApi.generateComment(notif.postId, tones.length ? tones.join(", ") : undefined, cp || undefined)).comment; setComment(c); if (onCommentCached) onCommentCached(c); } catch(e: any) { setErr(e.message); } finally { setLoading(false); } }
   async function copy() { await navigator.clipboard.writeText(comment); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:32}}>
@@ -1244,11 +1319,11 @@ function PostPopupH({ notif, cachedComment, onCommentCached, onClose, onAction }
         </div>
         {!comment && (<>
           <div style={{marginBottom:14}}>
-            <div style={{fontSize:10,color:C_H.muted,letterSpacing:"0.08em",marginBottom:8}}>SELECT TONE (optional)</div>
+            <div style={{fontSize:10,color:C_H.muted,letterSpacing:"0.08em",marginBottom:8}}>SELECT TONE (optional, pick multiple)</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7}}>
               {TONES.map(t => (
-                <button key={t} onClick={() => setTone(tone === t ? "" : t)}
-                  style={{background:tone===t?"#1C1400":"#111318",border:`1px solid ${tone===t?C_H.accent:"#2A1F00"}`,borderRadius:8,padding:"9px 6px",fontSize:12,color:tone===t?C_H.accent:C_H.muted,cursor:"pointer",fontFamily:"inherit",fontWeight:tone===t?600:400,transition:"all 0.12s"}}>
+                <button key={t} onClick={() => toggleToneH(t)}
+                  style={{background:tones.includes(t)?"#1C1400":"#111318",border:`1px solid ${tones.includes(t)?C_H.accent:"#2A1F00"}`,borderRadius:8,padding:"9px 6px",fontSize:12,color:tones.includes(t)?C_H.accent:C_H.muted,cursor:"pointer",fontFamily:"inherit",fontWeight:tones.includes(t)?600:400,transition:"all 0.12s"}}>
                   {t}
                 </button>
               ))}
@@ -1259,7 +1334,11 @@ function PostPopupH({ notif, cachedComment, onCommentCached, onClose, onAction }
         {err && <div style={{color:C_H.red,fontSize:13,marginBottom:12}}>{err}</div>}
         {comment && <div style={{background:"#080B12",border:`1px solid #1E3A5F`,borderRadius:12,padding:22,marginBottom:20}}>
           <p style={{margin:"0 0 16px",fontSize:14,color:"#D1D5DB",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{comment}</p>
-          <div style={{display:"flex",gap:8,marginBottom:12}}>
+          <div style={{display:"flex",gap:8,marginBottom:12,opacity:customPrompt?1:0.45,transition:"opacity 0.15s"}}
+            onMouseEnter={(e: any) => e.currentTarget.style.opacity="1"}
+            onMouseLeave={(e: any) => e.currentTarget.style.opacity=customPrompt?"1":"0.45"}
+            onFocusCapture={(e: any) => e.currentTarget.style.opacity="1"}
+            onBlurCapture={(e: any) => { if (!customPrompt) e.currentTarget.style.opacity="0.45"; }}>
             <input value={customPrompt} onChange={(e: any) => setCustomPrompt(e.target.value)} placeholder="Add instruction to customize… e.g. make it shorter, add a question"
               style={{flex:1,background:"#0A0C12",border:"1px solid #2A1F00",borderRadius:6,padding:"7px 10px",fontSize:12,color:"#E5E7EB",outline:"none",fontFamily:"inherit"}} />
             <button onClick={() => { const cp = customPrompt; setCustomPrompt(""); generate(cp); }} disabled={loading}

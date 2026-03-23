@@ -160,11 +160,28 @@ export default function UsersPanel({ onSelectHolder, onAckChange }: { onSelectHo
   function loadAll() {
     setLoading(true);
     Promise.all([
-      req("GET", "/admin/all-users"),
-      req("GET", "/admin/alerts"),
-    ]).then(([allRows, alerts]) => {
-      setRows(allRows);
-      setSignupAlerts(alerts);
+      req("GET", "/admin/all-users").catch(() => null),
+      req("GET", "/admin/alerts").catch(() => ({ newSignups: [], total: 0 })),
+    ]).then(async ([allRows, alerts]) => {
+      if (allRows) {
+        setRows(allRows);
+      } else {
+        // Fallback: stitch together from old endpoints (Railway not yet redeployed)
+        const [rawUsers, rawInvites] = await Promise.all([
+          req("GET", "/admin/users").catch(() => []),
+          req("GET", "/admin/invites").catch(() => []),
+        ]);
+        const users = (rawUsers as any[]).map((u: any) => ({
+          ...u, type: "user",
+          status: u.isDeleted ? "deleted" : u.isActive === false ? "inactive" : "active",
+          date: u.createdAt,
+        }));
+        const invites = (rawInvites as any[]).map((i: any) => ({
+          ...i, type: "invite", status: "invited", date: i.invitedAt ?? i.createdAt,
+        }));
+        setRows([...invites, ...users]);
+      }
+      setSignupAlerts(alerts ?? { newSignups: [], total: 0 });
     }).catch(() => {}).finally(() => setLoading(false));
   }
 
