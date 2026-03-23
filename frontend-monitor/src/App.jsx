@@ -595,8 +595,60 @@ function PauseModal({isPaused,pausedUntil,onClose,onPause,onResume}){
   );
 }
 
+function LeaderboardView({userRole}){
+  const SORT_BTNS=[
+    {key:"avgPerDay",label:"Avg Comments/Day",color:"#F59E0B",tip:"Average comments posted per active day"},
+    {key:"totalUpvotes",label:"Total Upvotes",color:"#22C55E",tip:"Total upvotes received across all posted comments"},
+    {key:"totalPosted",label:"Total Posts",color:"#F9FAFB",tip:"Total comments posted through this tool"},
+    {key:"upvoteRate",label:"Upvote Rate",color:"#F59E0B",tip:"Average upvotes per comment (total upvotes ÷ total posted)"},
+    {key:"activeDays",label:"Active Days",color:"#A78BFA",tip:"Distinct days on which at least one comment was posted"},
+    {key:"last24hPosted",label:"Last 24h",color:"#3B82F6",tip:"Comments posted in the last 24 hours"},
+  ];
+  const ROLE_COLOR={holder:"#F59E0B",monitor:"#3B82F6",main:"#A78BFA"};
+  const ROLE_LABEL={holder:"Holder",monitor:"Monitor",main:"Admin"};
+  const RANK_LABELS=["🥇","🥈","🥉"];
+  const RANK_COLORS=["#F59E0B","#9CA3AF","#CD7C3E"];
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [updatedAt,setUpdatedAt]=useState("");
+  const [sortBy,setSortBy]=useState("avgPerDay");
+  const [search,setSearch]=useState("");
+  const [roleFilter,setRoleFilter]=useState("all");
+  const fmt1=n=>Number.isFinite(n)?n.toFixed(1):"0.0";
+  useEffect(()=>{
+    fetch("/api/leaderboard",{headers:{Authorization:`Bearer ${localStorage.getItem("token")}`}})
+      .then(r=>r.json()).then(data=>{setRows(Array.isArray(data)?data:[]);const latest=(Array.isArray(data)?data:[]).find(d=>d.updatedAt);if(latest)setUpdatedAt(new Date(latest.updatedAt).toLocaleString("en-IN",{timeZone:"Asia/Kolkata"})+" IST");}).catch(()=>{}).finally(()=>setLoading(false));
+  },[]);
+  const filtered=rows.filter(r=>{if(roleFilter!=="all"&&r.role!==roleFilter)return false;if(search){const q=search.toLowerCase();return r.name?.toLowerCase().includes(q);}return true;});
+  const sorted=[...filtered].sort((a,b)=>b[sortBy]-a[sortBy]);
+  return(
+    <div style={{flex:1,overflowY:"auto",padding:"28px 36px",fontFamily:"'IBM Plex Sans',sans-serif"}}>
+      <div style={{maxWidth:920}}>
+        <div style={{marginBottom:22}}>
+          <div style={{fontSize:10,color:C.muted,letterSpacing:"1px",fontWeight:600,marginBottom:6}}>LEADERBOARD</div>
+          <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+            <div style={{fontSize:22,fontWeight:800,color:C.text}}>Team Performance</div>
+            {updatedAt&&<div style={{fontSize:11,color:C.dim}}>Last updated {updatedAt}</div>}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
+          <input style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 14px",color:C.text,fontFamily:"inherit",fontSize:13,outline:"none",flex:"1 1 200px"}} placeholder="Search by name…" value={search} onChange={e=>setSearch(e.target.value)}/>
+          <div style={{display:"flex",gap:4}}>
+            {["all","holder",...(userRole!=="holder"?["monitor"]:[])].map(f=>{const col=f==="all"?C.text:ROLE_COLOR[f];const active=roleFilter===f;return(<button key={f} onClick={()=>setRoleFilter(f)} style={{background:active?col+"18":"none",border:active?`1px solid ${col}40`:`1px solid ${C.border}`,borderRadius:7,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:active?700:500,color:active?col:C.muted}}>{f==="all"?"All":ROLE_LABEL[f]}</button>);})}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
+          {SORT_BTNS.map(({key,label,color,tip})=>{const active=sortBy===key;return(<button key={key} onClick={()=>setSortBy(key)} style={{background:active?color+"15":"none",border:active?`1px solid ${color}50`:`1px solid ${C.border}`,borderRadius:7,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:active?700:500,color:active?color:C.muted,transition:"all 0.12s",display:"flex",alignItems:"center",gap:5}}>{active?`↓ ${label}`:label}<span title={tip} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:13,height:13,borderRadius:"50%",border:`1px solid ${active?color+"80":C.muted+"60"}`,fontSize:8,fontWeight:700,color:active?color:C.muted,cursor:"help",flexShrink:0,fontStyle:"italic"}}>i</span></button>);})}
+        </div>
+        {loading?<div style={{color:C.muted,fontSize:13,padding:20}}>Loading…</div>:sorted.length===0?<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"48px 24px",textAlign:"center",color:C.dim,fontSize:13}}>{search||roleFilter!=="all"?"No users match your filters.":"No data yet — leaderboard updates daily at 3pm IST."}</div>:<div style={{display:"flex",flexDirection:"column",gap:10}}>{sorted.map((row,idx)=>{const rc=ROLE_COLOR[row.role]??"#9CA3AF";const isTop3=idx<3;return(<div key={row.userId} style={{background:isTop3?`${RANK_COLORS[idx]}08`:C.surface,border:`1px solid ${isTop3?RANK_COLORS[idx]+"30":C.border}`,borderRadius:12,padding:"16px 20px",display:"grid",gridTemplateColumns:"40px 1fr repeat(6, 82px)",alignItems:"center",gap:10}}><div style={{textAlign:"center"}}>{isTop3?<span style={{fontSize:20}}>{RANK_LABELS[idx]}</span>:<span style={{fontSize:13,fontWeight:700,color:C.dim}}>#{idx+1}</span>}</div><div style={{minWidth:0}}><div style={{fontSize:13,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{row.name}</div><span style={{fontSize:10,color:rc,background:rc+"18",padding:"2px 8px",borderRadius:12,fontWeight:600}}>{ROLE_LABEL[row.role]??row.role}</span></div>{[{v:fmt1(row.avgPerDay),l:"AVG CMTS/DAY",c:"#F59E0B",k:"avgPerDay"},{v:String(row.totalUpvotes),l:"UPVOTES",c:"#22C55E",k:"totalUpvotes"},{v:String(row.totalPosted),l:"POSTED",c:C.text,k:"totalPosted"},{v:fmt1(row.upvoteRate),l:"UPV/POST",c:"#F59E0B",k:"upvoteRate"},{v:String(row.activeDays),l:"ACTIVE DAYS",c:"#A78BFA",k:"activeDays"},{v:String(row.last24hPosted),l:"LAST 24H",c:row.last24hPosted>0?"#3B82F6":C.dim,k:"last24hPosted"}].map(({v,l,c,k})=>(<div key={k} style={{textAlign:"center",background:sortBy===k?c+"0D":"none",borderRadius:8,padding:"4px 0"}}><div style={{fontSize:15,fontWeight:800,color:c}}>{v}</div><div style={{fontSize:8,color:C.muted,letterSpacing:"0.06em",marginTop:2}}>{l}</div></div>))}</div>);})}</div>}
+        {sorted.length>0&&<div style={{marginTop:14,fontSize:10,color:C.dim,textAlign:"right"}}>{sorted.length} member{sorted.length!==1?"s":""} shown</div>}
+      </div>
+    </div>
+  );
+}
+
 function Dashboard({user,onLogout}){
-  const [section,setSection]=useState("accounts"); // "accounts" | "holders"
+  const [section,setSection]=useState("accounts"); // "accounts" | "holders" | "leaderboard"
   const [mainTab,setMainTab]=useState("notifications"); // "notifications" | "subreddits"
   const [openAccId,setOpenAccId]=useState(null);
   const [accounts,setAccounts]=useState([]);
@@ -712,8 +764,19 @@ function Dashboard({user,onLogout}){
           }
         </div>
 
-        {/* Bottom nav: Holders + Logout */}
+        {/* Bottom nav: Leaderboard + Holders + Logout */}
         <div style={{borderTop:`1px solid ${C.border}`,padding:"8px 12px"}}>
+          <div onClick={()=>setSection("leaderboard")}
+            style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",borderRadius:7,cursor:"pointer",marginBottom:2,
+              background:section==="leaderboard"?"#071A0A":"transparent",
+              borderLeft:`2px solid ${section==="leaderboard"?"#22C55E":"transparent"}`,transition:"background 0.12s"}}
+            onMouseEnter={e=>{if(section!=="leaderboard")e.currentTarget.style.background="#111318";}}
+            onMouseLeave={e=>{if(section!=="leaderboard")e.currentTarget.style.background="transparent";}}>
+            <span style={{width:20,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:section==="leaderboard"?"#22C55E":"#6B7280"}}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </span>
+            <span style={{fontSize:12,color:section==="leaderboard"?"#22C55E":"#9CA3AF",fontWeight:section==="leaderboard"?600:400,flex:1}}>Leaderboard</span>
+          </div>
           <div onClick={()=>{setSection("holders");setSelectedHolder(null);}}
             style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",borderRadius:7,cursor:"pointer",marginBottom:2,
               background:section==="holders"?"#0D1626":"transparent",
@@ -753,7 +816,9 @@ function Dashboard({user,onLogout}){
       {showPauseModal&&<PauseModal isPaused={!!isPaused} pausedUntil={pausedUntil} onClose={()=>setShowPauseModal(false)} onPause={pauseNotifications} onResume={resumeNotifications}/>}
 
       {/* Main content */}
-      {section==="accounts"
+      {section==="leaderboard"
+        ? <LeaderboardView userRole="monitor"/>
+        : section==="accounts"
         ? openAccId
           ? <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
               {/* Tab bar */}
