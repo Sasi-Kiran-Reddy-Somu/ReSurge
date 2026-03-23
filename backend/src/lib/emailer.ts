@@ -11,8 +11,13 @@ function getResend() {
 }
 
 async function sendEmail(to: string, subject: string, html: string) {
-  const { error } = await getResend().emails.send({ from: `ReSurge <${FROM_EMAIL}>`, to, subject, html });
-  if (error) throw new Error(error.message);
+  console.log(`[Emailer] Sending to=${to} from=${FROM_EMAIL} key=${process.env.RESEND_API_KEY ? "set" : "MISSING"}`);
+  const result = await getResend().emails.send({ from: `ReSurge <${FROM_EMAIL}>`, to, subject, html });
+  if (result.error) {
+    console.error(`[Emailer] Resend error:`, JSON.stringify(result.error));
+    throw new Error(JSON.stringify(result.error));
+  }
+  console.log(`[Emailer] Sent OK id=${result.data?.id}`);
 }
 
 function buildInviteHtml(opts: { toEmail: string; roleLabel: string; loginUrl: string }) {
