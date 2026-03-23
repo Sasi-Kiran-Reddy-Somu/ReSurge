@@ -210,14 +210,17 @@ adminRoutes.get("/all-users", async (c) => {
     status: u.isDeleted ? "deleted" : u.isActive ? "active" : "inactive",
     date: u.createdAt,
   }));
-  const inviteRows = allInvites.map(inv => ({
-    type: "invite" as const,
-    id: inv.id, name: null, email: inv.email,
-    role: inv.role, roles: [inv.role],
-    isActive: null, isDeleted: null,
-    status: "invited" as const,
-    date: inv.invitedAt,
-  }));
+  const signedUpEmails = new Set(allUsers.map(u => u.email));
+  const inviteRows = allInvites
+    .filter(inv => !signedUpEmails.has(inv.email)) // skip stale invites for already-registered users
+    .map(inv => ({
+      type: "invite" as const,
+      id: inv.id, name: null, email: inv.email,
+      role: inv.role, roles: [inv.role],
+      isActive: null, isDeleted: null,
+      status: "invited" as const,
+      date: inv.invitedAt,
+    }));
   return c.json([...inviteRows, ...userRows]);
 });
 

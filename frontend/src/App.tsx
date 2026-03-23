@@ -1773,6 +1773,25 @@ export default function App() {
       .finally(() => setAuthChecked(true));
   }, []);
 
+  // Poll every 30s to catch deactivation/deletion even when user is idle
+  useEffect(() => {
+    if (!token) return;
+    const id = setInterval(async () => {
+      const t = localStorage.getItem("token");
+      if (!t) return;
+      try {
+        const res = await fetch("/api/auth/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: t }) });
+        if (res.status === 401 || res.status === 403) {
+          const j = await res.json().catch(() => ({}));
+          if (j.code === "ACCOUNT_DELETED" || j.code === "ACCOUNT_DEACTIVATED") localStorage.setItem("auth_error", j.error ?? "Account access denied.");
+          localStorage.removeItem("token"); localStorage.removeItem("user_data");
+          setToken(null); setUser(null);
+        }
+      } catch {}
+    }, 30000);
+    return () => clearInterval(id);
+  }, [token]);
+
   function handleAuth(tok: string, u: any, newSignup: boolean) {
     localStorage.setItem("user_data", JSON.stringify(u));
     setToken(tok);

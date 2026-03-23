@@ -167,7 +167,9 @@ authRoutes.post("/verify", async (c) => {
   const payload = verifyToken(token);
   if (!payload) return c.json({ error: "Invalid token" }, 401);
   const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
-  if (!user) return c.json({ error: "User not found" }, 404);
+  if (!user) return c.json({ error: "Account not found", code: "ACCOUNT_DELETED" }, 401);
+  if (user.isDeleted) return c.json({ error: "This account has been deleted. Contact admin.", code: "ACCOUNT_DELETED" }, 401);
+  if (!user.isActive) return c.json({ error: "This account has been deactivated. Contact admin.", code: "ACCOUNT_DEACTIVATED" }, 401);
   const roles = (user.roles && user.roles.length > 0) ? user.roles : [user.role];
   return c.json({ user: { id: user.id, email: user.email, name: user.name, role: payload.role, roles } });
 });

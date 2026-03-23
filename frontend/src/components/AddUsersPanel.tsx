@@ -32,7 +32,7 @@ async function req(method: string, path: string, body?: any) {
   return json;
 }
 
-const ROLE_COLORS: any = { monitor: C.blue, holder: C.green, main: "#FF4500" };
+const ROLE_COLORS: any = { monitor: C.blue, holder: "#14B8A6", main: "#FF4500" };
 const ROLE_LABELS: any = { monitor: "Monitor", holder: "Holder", main: "Admin" };
 const ROLE_OPTIONS = ["holder", "monitor", "main"];
 
@@ -52,27 +52,39 @@ type RowAction = "resend" | "deactivate" | "activate" | "delete" | "role";
 function ActionsMenu({ row, onAction, busy }: { row: any; onAction: (action: RowAction, extra?: any) => void; busy: boolean }) {
   const [open, setOpen] = useState(false);
   const [roleMenu, setRoleMenu] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function close(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setRoleMenu(false); }
+      if (btnRef.current && btnRef.current.contains(e.target as Node)) return;
+      if (menuRef.current && menuRef.current.contains(e.target as Node)) return;
+      setOpen(false); setRoleMenu(false);
     }
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
+  function toggleMenu() {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    }
+    setOpen(o => !o); setRoleMenu(false);
+  }
+
   if (busy) return <span style={{ fontSize: 12, color: C.muted }}>…</span>;
   if (row.status === "deleted") return <span style={{ fontSize: 11, color: C.dim }}>—</span>;
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button onClick={() => { setOpen(o => !o); setRoleMenu(false); }}
+    <div style={{ position: "relative" }}>
+      <button ref={btnRef} onClick={toggleMenu}
         style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 6, width: 30, height: 30, cursor: "pointer", color: C.sub, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
         ⚙
       </button>
       {open && (
-        <div style={{ position: "absolute", right: 0, bottom: 36, background: "#13161F", border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", zIndex: 100, minWidth: 170, boxShadow: "0 8px 32px #00000080" }}>
+        <div ref={menuRef} style={{ position: "fixed", top: menuPos.top, right: menuPos.right, background: "#13161F", border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", zIndex: 9999, minWidth: 170, boxShadow: "0 8px 32px #00000080" }}>
           {!roleMenu ? (
             <>
               {/* Resend invite — for invited and active */}
@@ -416,7 +428,7 @@ export default function UsersPanel({ onSelectHolder, onAckChange }: { onSelectHo
               {search || statusFilter !== "all" ? "No users match your filters." : "No users yet. Send an invite above."}
             </div>
           ) : (
-            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12 }}>
               {/* Header row */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 90px 110px 40px", gap: 16, padding: "11px 20px", borderBottom: `1px solid ${C.border}` }}>
                 {["NAME / EMAIL", "ROLE", "STATUS", "DATE", ""].map(h => (
