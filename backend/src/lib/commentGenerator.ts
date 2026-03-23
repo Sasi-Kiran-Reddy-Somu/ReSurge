@@ -28,7 +28,7 @@ export async function generateComment(post: {
   title: string;
   selftext: string;
   url: string;
-}, tone?: string, customPrompt?: string): Promise<string> {
+}, tone?: string, customPrompt?: string, previousComments?: string[]): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
 
@@ -45,6 +45,9 @@ export async function generateComment(post: {
 
   const toneInstruction = tone ? `- Write in a ${tone} tone.\n` : "";
   const customInstruction = customPrompt ? `\nAdditional instruction: ${customPrompt}` : "";
+  const avoidInstruction = previousComments && previousComments.length > 0
+    ? `\n\nIMPORTANT — These comments have already been posted on this thread by other users of our tool. Do NOT copy their structure, opening words, sentence patterns, or ideas. Write something distinctly different:\n${previousComments.map((c, i) => `[${i + 1}] ${c}`).join("\n\n")}`
+    : "";
 
   const prompt = `You are a regular Reddit user in r/${post.subreddit}. Write ONE comment replying to the post below.
 
@@ -63,7 +66,7 @@ ${toneInstruction}- Add genuine value: a useful insight, experience, question, o
 - Never use AI giveaway words: certainly, absolutely, great question, I'd be happy to, of course, indeed, it's worth noting, it's important to, comprehensive, delve, foster, utilize, leverage, in conclusion.
 - Don't sound like you're trying too hard to be casual — just be natural.
 - Keep it concise: 2-4 sentences is usually enough. Don't pad it out.
-- Output only the comment text. Nothing else.${customInstruction}`;
+- Output only the comment text. Nothing else.${customInstruction}${avoidInstruction}`;
 
   const response = await client.chat.completions.create({
     model: "gpt-4o",

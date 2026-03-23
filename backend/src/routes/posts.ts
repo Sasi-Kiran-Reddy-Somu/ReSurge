@@ -75,8 +75,14 @@ postRoutes.post("/:id/generate-comment", async (c) => {
   const tone: string | undefined = body.tone || undefined;
   const customPrompt: string | undefined = body.customPrompt || undefined;
 
+  // Fetch previously generated comments for this post to avoid repeating structure
+  const prevRows = await db.select().from(generatedComments).where(eq(generatedComments.postId, id));
+  const previousComments: string[] = prevRows.flatMap((r: any) => {
+    try { return JSON.parse(r.suggestions); } catch { return []; }
+  });
+
   try {
-    const comment = await generateComment(post, tone, customPrompt);
+    const comment = await generateComment(post, tone, customPrompt, previousComments);
 
     await db.insert(generatedComments).values({
       postId:      post.id,
