@@ -105,7 +105,7 @@ export default function LeaderboardPanel({ token, role: roleProp }: { token: str
               <button key={key} onClick={() => setSortBy(key)}
                 style={{ background: active ? color + "15" : "none", border: active ? `1px solid ${color}50` : `1px solid ${C.border}`, borderRadius: 7, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: active ? 700 : 500, color: active ? color : C.muted, transition: "all 0.12s", display: "flex", alignItems: "center", gap: 5 }}>
                 {active ? `↓ ${label}` : label}
-                <span title={tip} style={{ fontSize: 10, color: active ? color : C.sub, cursor: "help", lineHeight: 1, marginTop: -1 }}>ⓘ</span>
+                <span title={tip} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 13, height: 13, borderRadius: "50%", border: `1px solid ${active ? color + "80" : C.muted + "60"}`, fontSize: 8, fontWeight: 700, color: active ? color : C.muted, cursor: "help", flexShrink: 0, fontStyle: "italic" }}>i</span>
               </button>
             );
           })}
