@@ -54,6 +54,17 @@ export async function generateComment(post: {
     ? `\n\nIMPORTANT — These comments have already been posted on this thread by other users of our tool. Do NOT copy their structure, opening words, sentence patterns, or ideas. Write something distinctly different:\n${previousComments.map((c, i) => `[${i + 1}] ${c}`).join("\n\n")}`
     : "";
 
+  // Collect banned opening words from ALL top comments + previously generated comments
+  const allSources = [...topComments, ...(previousComments ?? [])];
+  const bannedStarters = [...new Set(
+    allSources
+      .map(c => c.trim().split(/\s+/).slice(0, 2).join(" "))
+      .filter(w => w.length > 0)
+  )];
+  const bannedStartersInstruction = bannedStarters.length > 0
+    ? `- Do not start your comment with any of these words or phrases (they're already used in this thread): ${bannedStarters.map(w => `"${w}"`).join(", ")}.\n`
+    : "";
+
   const prompt = `You are a regular Reddit user in r/${post.subreddit}. Write ONE comment replying to the post below.
 
 Post title: ${post.title}${postBody}${commentsContext}
@@ -68,6 +79,7 @@ ${toneInstruction}- Add genuine value: a useful insight, experience, question, o
 - No em dashes (—). Use commas or just start a new sentence instead.
 - No hashtags.
 - Don't start with "I".
+${bannedStartersInstruction}
 - Never use AI giveaway words: certainly, absolutely, great question, I'd be happy to, of course, indeed, it's worth noting, it's important to, comprehensive, delve, foster, utilize, leverage, in conclusion.
 - Don't sound like you're trying too hard to be casual — just be natural.
 - Keep it concise: 2-4 sentences is usually enough. Don't pad it out.
