@@ -14,18 +14,19 @@ const RANK_LABELS = ["🥇", "🥈", "🥉"];
 
 type SortKey = "avgPerDay" | "totalUpvotes" | "totalPosted" | "upvoteRate" | "activeDays" | "last24hPosted";
 
-const SORT_BTNS: { key: SortKey; label: string; color: string }[] = [
-  { key: "avgPerDay",     label: "Avg/Day",      color: C.amber  },
-  { key: "totalUpvotes",  label: "Total Upvotes", color: C.green  },
-  { key: "totalPosted",   label: "Total Posts",   color: C.text   },
-  { key: "upvoteRate",    label: "Upvote Rate",   color: C.amber  },
-  { key: "activeDays",    label: "Active Days",   color: C.purple },
-  { key: "last24hPosted", label: "Last 24h",      color: C.blue   },
+const SORT_BTNS: { key: SortKey; label: string; color: string; tip: string }[] = [
+  { key: "avgPerDay",     label: "Avg Comments/Day", color: C.amber,  tip: "Average number of comments posted per active day" },
+  { key: "totalUpvotes",  label: "Total Upvotes",    color: C.green,  tip: "Total upvotes received across all posted comments" },
+  { key: "totalPosted",   label: "Total Posts",      color: C.text,   tip: "Total number of comments posted through this tool" },
+  { key: "upvoteRate",    label: "Upvote Rate",      color: C.amber,  tip: "Average upvotes per comment posted (total upvotes ÷ total posted)" },
+  { key: "activeDays",    label: "Active Days",      color: C.purple, tip: "Number of distinct days on which at least one comment was posted" },
+  { key: "last24hPosted", label: "Last 24h",         color: C.blue,   tip: "Number of comments posted in the last 24 hours" },
 ];
 
 function fmt1(n: number) { return Number.isFinite(n) ? n.toFixed(1) : "0.0"; }
 
-export default function LeaderboardPanel({ token }: { token: string }) {
+export default function LeaderboardPanel({ token, role: roleProp }: { token: string; role?: string }) {
+  const role = roleProp ?? (() => { try { return JSON.parse(localStorage.getItem("user_data") ?? "{}").role ?? "monitor"; } catch { return "monitor"; } })();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<string>("");
@@ -83,7 +84,7 @@ export default function LeaderboardPanel({ token }: { token: string }) {
             onChange={(e: any) => setSearch(e.target.value)}
           />
           <div style={{ display: "flex", gap: 4 }}>
-            {(["all", "holder", "monitor"] as const).map(f => {
+            {(["all", "holder", ...(role !== "holder" ? ["monitor"] : [])] as const).map((f: any) => {
               const col = f === "all" ? C.text : ROLE_COLOR[f];
               const active = roleFilter === f;
               return (
@@ -98,12 +99,13 @@ export default function LeaderboardPanel({ token }: { token: string }) {
 
         {/* Sort tabs */}
         <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
-          {SORT_BTNS.map(({ key, label, color }) => {
+          {SORT_BTNS.map(({ key, label, color, tip }) => {
             const active = sortBy === key;
             return (
               <button key={key} onClick={() => setSortBy(key)}
-                style={{ background: active ? color + "15" : "none", border: active ? `1px solid ${color}50` : `1px solid ${C.border}`, borderRadius: 7, padding: "6px 14px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: active ? 700 : 500, color: active ? color : C.muted, transition: "all 0.12s" }}>
+                style={{ background: active ? color + "15" : "none", border: active ? `1px solid ${color}50` : `1px solid ${C.border}`, borderRadius: 7, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: active ? 700 : 500, color: active ? color : C.muted, transition: "all 0.12s", display: "flex", alignItems: "center", gap: 5 }}>
                 {active ? `↓ ${label}` : label}
+                <span title={tip} style={{ fontSize: 10, color: active ? color : C.sub, cursor: "help", lineHeight: 1, marginTop: -1 }}>ⓘ</span>
               </button>
             );
           })}
@@ -146,7 +148,7 @@ export default function LeaderboardPanel({ token }: { token: string }) {
                   </div>
 
                   {/* Avg/day */}
-                  <Metric value={fmt1(row.avgPerDay)} label="AVG/DAY" color={C.amber} highlight={sortBy === "avgPerDay"} />
+                  <Metric value={fmt1(row.avgPerDay)} label="AVG CMTS/DAY" color={C.amber} highlight={sortBy === "avgPerDay"} />
 
                   {/* Total upvotes */}
                   <Metric value={String(row.totalUpvotes)} label="UPVOTES" color={C.green} highlight={sortBy === "totalUpvotes"} />

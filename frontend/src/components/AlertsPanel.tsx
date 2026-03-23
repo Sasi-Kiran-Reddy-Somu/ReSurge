@@ -131,25 +131,6 @@ export default function AlertsPanel({ onSelectHolder, onAckChange }: { onSelectH
           ))}
         </div>
 
-        {/* ── Other alert types (coming soon) ─────────── */}
-        <div style={{ fontSize: 10, color: "#6B7280", letterSpacing: "1px", fontWeight: 600, marginBottom: 14 }}>OTHER ALERTS — COMING SOON</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {[
-            { icon: "😴", title: "Inactive holders", desc: "Holders who received alerts but haven't posted in 7+ days" },
-            { icon: "📉", title: "Low conversion rate", desc: "Holders with many notifications but 0 posts — may need follow-up" },
-            { icon: "💨", title: "Missed opportunities", desc: "Stack 3 posts that expired (4h) without anyone posting a comment" },
-            { icon: "📋", title: "Unassigned holders", desc: "Holder accounts not yet assigned to any monitor" },
-            { icon: "🔐", title: "Password resets", desc: "Holders who requested password resets (once feature is added)" },
-            { icon: "📊", title: "Weekly digest", desc: "Summary of alerts/week, posting rate, top performing subreddits" },
-          ].map(({ icon, title, desc }) => (
-            <div key={title} style={{ background: "#0A0C12", border: "1px solid #1F2937", borderRadius: 8, padding: "14px 16px", opacity: 0.6 }}>
-              <div style={{ fontSize: 18, marginBottom: 6 }}>{icon}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#9CA3AF", marginBottom: 4 }}>{title}</div>
-              <div style={{ fontSize: 11, color: "#4B5563", lineHeight: 1.5 }}>{desc}</div>
-            </div>
-          ))}
-        </div>
-
       </div>
     </div>
   );

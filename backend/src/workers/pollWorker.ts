@@ -178,6 +178,7 @@ export function createPollWorker() {
                 console.log(`  ✉ Notified ${user.email} about "${post.title}"`);
               } catch (err) {
                 console.error(`  ✗ Email failed for ${user.email}:`, (err as Error).message);
+                await db.update(notifications).set({ status: "failed" }).where(eq(notifications.id, notif.id));
               }
             }
           }

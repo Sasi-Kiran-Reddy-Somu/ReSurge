@@ -118,7 +118,7 @@ function DeleteConfirmModal({ monitor, onClose, onConfirm }: any) {
 }
 
 // ── Monitor Card ──────────────────────────────────────────────
-function MonitorCard({ monitor, onRefresh }: any) {
+function MonitorCard({ monitor, onRefresh, onView }: any) {
   const [expanded, setExpanded]     = useState(false);
   const [holders, setHolders]       = useState<any[]>([]);
   const [showAssign, setShowAssign] = useState(false);
@@ -154,6 +154,7 @@ function MonitorCard({ monitor, onRefresh }: any) {
             <div style={{ fontSize:11, color:"#6B7280" }}>{monitor.email}</div>
           </div>
           <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+            {onView && <button onClick={() => onView(monitor)} style={S.btn("#1A2A40","#93C5FD")}>View Details</button>}
             <button onClick={() => setShowAssign(true)} style={S.btn("#064E3B","#34D399")}>+ Assign Holder</button>
             {/* Settings dropdown */}
             <div style={{ position:"relative" }}>
@@ -195,7 +196,7 @@ function MonitorCard({ monitor, onRefresh }: any) {
 }
 
 // ── Main Panel ────────────────────────────────────────────────
-export default function MonitorPanel() {
+export default function MonitorPanel({ onSelectMonitor }: any) {
   const [monitors, setMonitors] = useState<any[]>([]);
   const [monitorSearch, setMonitorSearch] = useState("");
 
@@ -226,7 +227,7 @@ export default function MonitorPanel() {
       </div>
       {filteredMonitors.length === 0
         ? <div style={{ color:"#6B7280", fontSize:12 }}>{monitors.length === 0 ? "No monitor accounts yet." : "No results match your search."}</div>
-        : filteredMonitors.map((m: any) => <MonitorCard key={m.id} monitor={m} onRefresh={load} />)
+        : filteredMonitors.map((m: any) => <MonitorCard key={m.id} monitor={m} onRefresh={load} onView={onSelectMonitor} />)
       }
     </div>
   );

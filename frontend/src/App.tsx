@@ -204,7 +204,7 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
       />
 
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-        {view === "leaderboard" ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} /> :
+        {view === "leaderboard" ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} role="main" /> :
          view === "add-users" ? <AddUsersPanel onSelectHolder={(h: any) => { setSelectedHolder(h); changeView("holders"); }} onAckChange={loadAlertCount} /> :
          view === "monitors" ? (
            selectedMonitor
@@ -1118,7 +1118,7 @@ function MonitorDashboard({ user, onLogout, initialPostId }: any) {
       </div>
 
       {section === "leaderboard"
-        ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} />
+        ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} role="monitor" />
         : section === "accounts"
         ? openAccId
           ? <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -1661,7 +1661,7 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
       </div>
 
       {holderMainTab === "leaderboard"
-        ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} />
+        ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} role="holder" />
         : openAccId
         ? <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             <div style={{background:C_H.surface,borderBottom:`1px solid ${C_H.border}`,display:"flex",flexShrink:0,padding:"0 32px"}}>
