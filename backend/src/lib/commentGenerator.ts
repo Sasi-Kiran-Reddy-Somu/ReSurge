@@ -35,8 +35,13 @@ export async function generateComment(post: {
   const client = new OpenAI({ apiKey });
 
   const topComments = await fetchTopComments(post.subreddit, post.redditId);
-  const commentsContext = topComments.length > 0
-    ? `\n\nTop comments in this thread (use these to match the community's tone, vocabulary and style):\n${topComments.map((c, i) => `[${i + 1}] ${c}`).join("\n\n")}`
+  // Strip any of our own previously generated comments from the style examples
+  // so the AI doesn't learn from and replicate them
+  const filteredTopComments = previousComments && previousComments.length > 0
+    ? topComments.filter(c => !previousComments.some(p => c.trim().slice(0, 40) === p.trim().slice(0, 40)))
+    : topComments;
+  const commentsContext = filteredTopComments.length > 0
+    ? `\n\nTop comments in this thread (use these to match the community's tone, vocabulary and style):\n${filteredTopComments.map((c, i) => `[${i + 1}] ${c}`).join("\n\n")}`
     : "";
 
   const postBody = post.selftext?.trim()
