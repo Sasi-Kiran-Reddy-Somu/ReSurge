@@ -207,7 +207,15 @@ export function createPollWorker() {
             .from(holderAccounts)
             .where(sql`${sub} = ANY(${holderAccounts.subreddits})`);
 
-          for (const account of matchingAccounts) {
+          // Deduplicate: one notification per user regardless of how many accounts they have
+          const seenHolderIds = new Set<string>();
+          const uniqueAccounts = matchingAccounts.filter(a => {
+            if (seenHolderIds.has(a.holderId)) return false;
+            seenHolderIds.add(a.holderId);
+            return true;
+          });
+
+          for (const account of uniqueAccounts) {
             const [user] = await db.select().from(users).where(eq(users.id, account.holderId)).limit(1);
             if (!user) continue;
             const userRoles = (user.roles && user.roles.length > 0) ? user.roles : [user.role];
