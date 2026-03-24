@@ -4,17 +4,31 @@ import { Resend } from "resend";
 const APP_URL    = process.env.APP_URL ?? process.env.HOLDER_APP_URL ?? "http://localhost:5173";
 const FROM_EMAIL = process.env.FROM_EMAIL ?? "onboarding@resend.dev";
 
-function getResend() {
+// Printed once at startup — immediately visible in Railway deploy logs
+console.log(`[Emailer] Init — FROM=${FROM_EMAIL} KEY=${process.env.RESEND_API_KEY ? "SET(" + process.env.RESEND_API_KEY.slice(0, 8) + "...)" : "*** NOT SET ***"}`);
+
+function getResend(): Resend {
   const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error("RESEND_API_KEY not set");
+  if (!key) {
+    console.error("[Emailer] Cannot send — RESEND_API_KEY is missing from environment");
+    throw new Error("RESEND_API_KEY not set");
+  }
   return new Resend(key);
 }
 
 async function sendEmail(to: string, subject: string, html: string) {
-  console.log(`[Emailer] Sending to=${to} from=${FROM_EMAIL} key=${process.env.RESEND_API_KEY ? "set" : "MISSING"}`);
-  const result = await getResend().emails.send({ from: `ReSurge <${FROM_EMAIL}>`, to, subject, html });
+  console.log(`[Emailer] Sending → to=${to} from=${FROM_EMAIL} key=${process.env.RESEND_API_KEY ? "set" : "MISSING"}`);
+  let result;
+  try {
+    result = await getResend().emails.send({ from: `ReSurge <${FROM_EMAIL}>`, to, subject, html });
+  } catch (sdkErr) {
+    // This fires when the HTTP call itself fails (network error, SDK throws)
+    // meaning Resend never received the request
+    console.error(`[Emailer] SDK threw before Resend received request:`, (sdkErr as Error).message);
+    throw sdkErr;
+  }
   if (result.error) {
-    console.error(`[Emailer] Resend error:`, JSON.stringify(result.error));
+    console.error(`[Emailer] Resend API rejected:`, JSON.stringify(result.error));
     throw new Error(JSON.stringify(result.error));
   }
   console.log(`[Emailer] Sent OK id=${result.data?.id}`);

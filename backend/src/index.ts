@@ -1,4 +1,12 @@
 import "dotenv/config";
+
+// ── Startup env check — printed before anything else ───────────
+const REQUIRED_VARS = ["DATABASE_URL", "JWT_SECRET", "RESEND_API_KEY", "FROM_EMAIL", "APP_URL", "REDIS_URL"];
+for (const v of REQUIRED_VARS) {
+  const val = process.env[v];
+  console.log(`[Env] ${v}: ${val ? (v.includes("KEY") || v.includes("SECRET") || v.includes("URL") ? val.slice(0, 12) + "..." : val) : "*** MISSING ***"}`);
+}
+
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
