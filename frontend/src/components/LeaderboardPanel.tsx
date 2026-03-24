@@ -110,7 +110,7 @@ export default function LeaderboardPanel({ token, role: roleProp }: { token: str
                   onMouseLeave={() => setHoveredTip(null)}
                   style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 14, height: 14, borderRadius: "50%", border: `1px solid ${active ? color + "80" : C.muted + "60"}`, fontSize: 9, fontWeight: 800, color: active ? color : C.muted, cursor: "help", flexShrink: 0, lineHeight: 1 }}>i</span>
                 {hoveredTip === key && (
-                  <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#1F2937", border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 11px", fontSize: 11, color: C.text, whiteSpace: "nowrap", zIndex: 100, pointerEvents: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.4)", maxWidth: 240, whiteSpace: "normal" as any, lineHeight: 1.5 }}>
+                  <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#1F2937", border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 11px", fontSize: 11, color: C.text, whiteSpace: "normal", zIndex: 100, pointerEvents: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.4)", maxWidth: 240, lineHeight: 1.5 }}>
                     {tip}
                   </div>
                 )}
