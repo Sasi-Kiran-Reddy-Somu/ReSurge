@@ -288,7 +288,7 @@ async function runPoll() {
             console.error(`  Email failed for ${user.email}:`, msg);
             const existing = emailFailures.get(msg) ?? [];
             emailFailures.set(msg, [...existing, user.email]);
-            await db.update(notifications).set({ status: "failed" }).where(eq(notifications.id, notif.id));
+            await db.update(notifications).set({ status: `failed:${msg.slice(0, 200)}` }).where(eq(notifications.id, notif.id));
           }
         }
       }
