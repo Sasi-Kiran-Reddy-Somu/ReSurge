@@ -3,7 +3,7 @@ import { bullConnection } from "../lib/redis.js";
 import { fetchNewPostsMulti, refreshPostEngagement } from "../lib/redditFetcher.js";
 import { runStackTransitions } from "../lib/stackEngine.js";
 import { db } from "../db/client.js";
-import { posts, thresholds, subreddits, users, holderAccounts, notifications } from "../db/schema.js";
+import { posts, thresholds, subreddits, users, holderAccounts, notifications, commentScores, leaderboardCache } from "../db/schema.js";
 import { eq, and, lt, sql, isNull, inArray } from "drizzle-orm";
 import { signToken } from "../lib/auth.js";
 import { sendStack4Notification } from "../lib/emailer.js";
@@ -21,6 +21,43 @@ import { POLL_QUEUE_NAME } from "../lib/queue.js";
  *  6. Send notifications for new Stack 3 alerts
  *  7. Expire old Stack 3 posts
  */
+async function rebuildLeaderboard() {
+  console.log("[Leaderboard] Starting daily rebuild...");
+  const posted = await db.select({ id: notifications.id, userId: notifications.userId, postedLink: notifications.postedLink, postedAt: notifications.postedAt })
+    .from(notifications).where(eq(notifications.status, "posted"));
+
+  const allUsers = await db.select({ id: users.id, name: users.name, role: users.role })
+    .from(users).where(and(eq(users.isActive, true), eq(users.isDeleted, false)));
+  const relevantUsers = allUsers.filter(u => u.role === "holder" || u.role === "monitor");
+
+  const now = new Date();
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  for (const user of relevantUsers) {
+    const userNotifs = posted.filter(n => n.userId === user.id);
+    const totalPosted = userNotifs.length;
+    const notifIds = userNotifs.map(n => n.id);
+    let totalUpvotes = 0;
+    if (notifIds.length > 0) {
+      const scores = await db.select({ score: commentScores.score }).from(commentScores).where(inArray(commentScores.notificationId, notifIds));
+      totalUpvotes = scores.reduce((sum, s) => sum + s.score, 0);
+    }
+    const last24hPosted = userNotifs.filter(n => n.postedAt && n.postedAt >= yesterday).length;
+    const days = new Set(userNotifs.filter(n => n.postedAt).map(n => n.postedAt!.toISOString().slice(0, 10)));
+    const activeDays = days.size;
+    const firstPostedAt = userNotifs.filter(n => n.postedAt).map(n => n.postedAt!).sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+    let avgPerDay = 0;
+    if (firstPostedAt && totalPosted > 0) {
+      const daysSinceFirst = Math.max(1, Math.ceil((now.getTime() - firstPostedAt.getTime()) / (86400 * 1000)));
+      avgPerDay = totalPosted / daysSinceFirst;
+    }
+    const upvoteRate = totalPosted > 0 ? totalUpvotes / totalPosted : 0;
+    await db.insert(leaderboardCache).values({ userId: user.id, name: user.name, role: user.role, totalPosted, totalUpvotes, last24hPosted, avgPerDay, upvoteRate, activeDays, firstPostedAt, updatedAt: now })
+      .onConflictDoUpdate({ target: leaderboardCache.userId, set: { name: user.name, role: user.role, totalPosted, totalUpvotes, last24hPosted, avgPerDay, upvoteRate, activeDays, firstPostedAt, updatedAt: now } });
+  }
+  console.log(`[Leaderboard] Rebuilt for ${relevantUsers.length} users.`);
+}
+
 export function createPollWorker() {
   const worker = new Worker(
     POLL_QUEUE_NAME,
@@ -199,6 +236,14 @@ export function createPollWorker() {
 
         void expireResult;
         console.log(`  r/${sub} — new: ${newCounts[sub] ?? 0}, alerts: ${newStack3Alerts.length}`);
+      }
+
+      // Daily leaderboard rebuild at 09:30 UTC (3pm IST)
+      const nowUtc = new Date();
+      const utcH = nowUtc.getUTCHours();
+      const utcM = nowUtc.getUTCMinutes();
+      if (utcH === 9 && utcM >= 30 && utcM < 31) {
+        rebuildLeaderboard().catch(err => console.error("[Leaderboard] Error:", (err as Error).message));
       }
     },
     {
