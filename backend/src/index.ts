@@ -66,7 +66,18 @@ app.route("/api/monitor",    monitorRoutes);
 app.route("/api/admin",      adminRoutes);
 app.route("/api/leaderboard", leaderboardRoutes);
 
-app.get("/health", (c) => c.json({ status: "ok", ts: Date.now() }));
+app.get("/health", (c) => c.json({
+  status: "ok",
+  ts: Date.now(),
+  env: {
+    RESEND_API_KEY: process.env.RESEND_API_KEY ? "SET" : "MISSING",
+    FROM_EMAIL:     process.env.FROM_EMAIL     ?? "MISSING (will use onboarding@resend.dev)",
+    APP_URL:        process.env.APP_URL        ?? "MISSING",
+    REDIS_URL:      process.env.REDIS_URL      ? "SET" : "MISSING",
+    DATABASE_URL:   process.env.DATABASE_URL   ? "SET" : "MISSING",
+    JWT_SECRET:     process.env.JWT_SECRET     ? "SET" : "MISSING (using fallback)",
+  },
+}));
 
 // ── Startup ────────────────────────────────────────────────────
 async function bootstrap() {
