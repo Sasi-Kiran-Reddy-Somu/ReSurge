@@ -10,7 +10,6 @@ const C = {
 const ROLE_COLOR: any = { holder: "#F59E0B", monitor: "#3B82F6", main: "#A78BFA" };
 const ROLE_LABEL: any = { holder: "Holder", monitor: "Monitor", main: "Admin" };
 const RANK_COLORS = ["#F59E0B", "#9CA3AF", "#CD7C3E"];
-const RANK_LABELS = ["🥇", "🥈", "🥉"];
 
 type SortKey = "avgPerDay" | "totalUpvotes" | "totalPosted" | "upvoteRate" | "activeDays" | "last24hPosted";
 
@@ -133,10 +132,7 @@ export default function LeaderboardPanel({ token, role: roleProp }: { token: str
                 }}>
                   {/* Rank */}
                   <div style={{ textAlign: "center" }}>
-                    {isTop3
-                      ? <span style={{ fontSize: 20 }}>{RANK_LABELS[idx]}</span>
-                      : <span style={{ fontSize: 13, fontWeight: 700, color: C.dim }}>#{idx + 1}</span>
-                    }
+                    <span style={{ fontSize: 13, fontWeight: 700, color: isTop3 ? RANK_COLORS[idx] : C.dim }}>#{idx + 1}</span>
                   </div>
 
                   {/* Name + role */}

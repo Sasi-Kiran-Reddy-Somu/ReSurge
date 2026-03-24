@@ -21,10 +21,43 @@ import { POLL_QUEUE_NAME } from "../lib/queue.js";
  *  6. Send notifications for new Stack 3 alerts
  *  7. Expire old Stack 3 posts
  */
+function extractCommentId(link: string): { postId: string; commentId: string } | null {
+  try {
+    const parts = new URL(link).pathname.split("/").filter(Boolean);
+    if (parts.length >= 6 && parts[2] === "comments") return { postId: parts[3], commentId: parts[5] };
+    return null;
+  } catch { return null; }
+}
+
+async function fetchCommentScore(postedLink: string): Promise<number | null> {
+  const ids = extractCommentId(postedLink);
+  if (!ids) return null;
+  try {
+    const res = await fetch(`https://www.reddit.com/comments/${ids.postId}/_/${ids.commentId}.json?raw_json=1`, {
+      headers: { "User-Agent": "ReSurge/1.0" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data: any = await res.json();
+    const children = data[1]?.data?.children;
+    return Array.isArray(children) && children.length > 0 ? children[0]?.data?.score ?? null : null;
+  } catch { return null; }
+}
+
 async function rebuildLeaderboard() {
   console.log("[Leaderboard] Starting daily rebuild...");
   const posted = await db.select({ id: notifications.id, userId: notifications.userId, postedLink: notifications.postedLink, postedAt: notifications.postedAt })
     .from(notifications).where(eq(notifications.status, "posted"));
+
+  // Refresh comment scores
+  for (const n of posted) {
+    if (!n.postedLink) continue;
+    const score = await fetchCommentScore(n.postedLink);
+    if (score === null) continue;
+    await db.delete(commentScores).where(eq(commentScores.notificationId, n.id));
+    await db.insert(commentScores).values({ notificationId: n.id, score, fetchedAt: new Date() });
+    await new Promise(r => setTimeout(r, 400));
+  }
 
   const allUsers = await db.select({ id: users.id, name: users.name, role: users.role })
     .from(users).where(and(eq(users.isActive, true), eq(users.isDeleted, false)));
