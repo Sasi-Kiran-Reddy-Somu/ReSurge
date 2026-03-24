@@ -32,6 +32,7 @@ export default function LeaderboardPanel({ token, role: roleProp }: { token: str
   const [sortBy, setSortBy] = useState<SortKey>("avgPerDay");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "holder" | "monitor">("all");
+  const [hoveredTip, setHoveredTip] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/leaderboard", { headers: { Authorization: `Bearer ${token}` } })
@@ -102,9 +103,17 @@ export default function LeaderboardPanel({ token, role: roleProp }: { token: str
             const active = sortBy === key;
             return (
               <button key={key} onClick={() => setSortBy(key)}
-                style={{ background: active ? color + "15" : "none", border: active ? `1px solid ${color}50` : `1px solid ${C.border}`, borderRadius: 7, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: active ? 700 : 500, color: active ? color : C.muted, transition: "all 0.12s", display: "flex", alignItems: "center", gap: 5 }}>
+                style={{ background: active ? color + "15" : "none", border: active ? `1px solid ${color}50` : `1px solid ${C.border}`, borderRadius: 7, padding: "6px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: active ? 700 : 500, color: active ? color : C.muted, transition: "all 0.12s", display: "flex", alignItems: "center", gap: 5, position: "relative" }}>
                 {active ? `↓ ${label}` : label}
-                <span title={tip} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 13, height: 13, borderRadius: "50%", border: `1px solid ${active ? color + "80" : C.muted + "60"}`, fontSize: 8, fontWeight: 700, color: active ? color : C.muted, cursor: "help", flexShrink: 0, fontStyle: "italic" }}>i</span>
+                <span
+                  onMouseEnter={() => setHoveredTip(key)}
+                  onMouseLeave={() => setHoveredTip(null)}
+                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 14, height: 14, borderRadius: "50%", border: `1px solid ${active ? color + "80" : C.muted + "60"}`, fontSize: 9, fontWeight: 800, color: active ? color : C.muted, cursor: "help", flexShrink: 0, lineHeight: 1 }}>i</span>
+                {hoveredTip === key && (
+                  <div style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#1F2937", border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 11px", fontSize: 11, color: C.text, whiteSpace: "nowrap", zIndex: 100, pointerEvents: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.4)", maxWidth: 240, whiteSpace: "normal" as any, lineHeight: 1.5 }}>
+                    {tip}
+                  </div>
+                )}
               </button>
             );
           })}
