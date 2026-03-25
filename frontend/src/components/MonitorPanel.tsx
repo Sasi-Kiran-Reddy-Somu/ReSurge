@@ -119,8 +119,6 @@ function DeleteConfirmModal({ monitor, onClose, onConfirm }: any) {
 
 // ── Monitor Card ──────────────────────────────────────────────
 function MonitorCard({ monitor, onRefresh, onView }: any) {
-  const [expanded, setExpanded]     = useState(false);
-  const [holders, setHolders]       = useState<any[]>([]);
   const [showAssign, setShowAssign] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -133,32 +131,21 @@ function MonitorCard({ monitor, onRefresh, onView }: any) {
     return () => document.removeEventListener("mousedown", close);
   }, [showSettings]);
 
-  useEffect(() => {
-    if (expanded) {
-      req("GET", `/admin/monitors/${monitor.id}/assignments`).then(async (assignments: any[]) => {
-        const all = await req("GET", "/admin/holders");
-        const assigned = all.filter((h: any) => assignments.some((a: any) => a.holderId === h.id));
-        setHolders(assigned);
-      }).catch(() => {});
-    }
-  }, [expanded, monitor.id]);
-
   return (
     <>
-      {showAssign && <AssignModal monitor={monitor} onClose={() => setShowAssign(false)} onAssigned={() => { setShowAssign(false); setExpanded(true); onRefresh(); }} />}
+      {showAssign && <AssignModal monitor={monitor} onClose={() => setShowAssign(false)} onAssigned={() => { setShowAssign(false); onRefresh(); }} />}
       {showDelete && <DeleteConfirmModal monitor={monitor} onClose={() => setShowDelete(false)} onConfirm={() => { setShowDelete(false); onRefresh(); }} />}
       <div style={S.card}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <div style={{ cursor:"pointer", flex:1 }} onClick={() => setExpanded((e: boolean) => !e)}>
+          <div style={{ cursor:"pointer", flex:1 }} onClick={() => onView && onView(monitor)}>
             <div style={{ fontWeight:700, fontSize:14, marginBottom:2 }}>{monitor.name}</div>
             <div style={{ fontSize:11, color:"#6B7280" }}>{monitor.email}</div>
           </div>
           <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-            {onView && <button onClick={() => onView(monitor)} style={S.btn("#1A2A40","#93C5FD")}>View Details</button>}
-            <button onClick={() => setShowAssign(true)} style={S.btn("#064E3B","#34D399")}>+ Assign Holder</button>
+            <button onClick={(e: any) => { e.stopPropagation(); setShowAssign(true); }} style={S.btn("#064E3B","#34D399")}>+ Assign Holder</button>
             {/* Settings dropdown */}
             <div style={{ position:"relative" }}>
-              <button onClick={() => setShowSettings((s: boolean) => !s)} style={S.btn("#1F2937","#9CA3AF")}>⚙ Settings</button>
+              <button onClick={(e: any) => { e.stopPropagation(); setShowSettings((s: boolean) => !s); }} style={S.btn("#1F2937","#9CA3AF")}>⚙ Settings</button>
               {showSettings && (
                 <div style={{ position:"absolute", right:0, top:"110%", background:"#0F1117", border:"1px solid #1F2937", borderRadius:8, padding:6, minWidth:150, zIndex:100, boxShadow:"0 8px 24px rgba(0,0,0,0.5)" }}>
                   <div onClick={() => { setShowSettings(false); setShowDelete(true); }}
@@ -170,26 +157,8 @@ function MonitorCard({ monitor, onRefresh, onView }: any) {
                 </div>
               )}
             </div>
-            <span style={{ cursor:"pointer", color:"#6B7280", fontSize:18, marginLeft:4, lineHeight:1 }} onClick={() => { setExpanded((e: boolean) => !e); setShowSettings(false); }}>
-              {expanded ? "▲" : "▼"}
-            </span>
           </div>
         </div>
-
-        {expanded && (
-          <div style={{ marginTop:14, paddingTop:14, borderTop:"1px solid #1F2937" }}>
-            <div style={{ fontSize:10, color:"#6B7280", marginBottom:8 }}>ASSIGNED HOLDERS ({holders.length})</div>
-            {holders.length === 0
-              ? <div style={{ color:"#6B7280", fontSize:12 }}>No holders assigned yet.</div>
-              : holders.map((h: any) => (
-                <div key={h.id} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:"1px solid #111318", fontSize:12 }}>
-                  <span style={{ color:"#D1D5DB" }}>{h.name}</span>
-                  <span style={{ color:"#6B7280" }}>{h.email}</span>
-                </div>
-              ))
-            }
-          </div>
-        )}
       </div>
     </>
   );
