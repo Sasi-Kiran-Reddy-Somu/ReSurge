@@ -6,7 +6,7 @@ import { db } from "../db/client.js";
 import { posts, thresholds, subreddits, users, holderAccounts, notifications, commentScores, leaderboardCache } from "../db/schema.js";
 import { eq, and, lt, sql, isNull, inArray } from "drizzle-orm";
 import { signToken } from "../lib/auth.js";
-import { sendStack4Notification } from "../lib/emailer.js";
+import { sendStack3Notification } from "../lib/emailer.js";
 import { POLL_QUEUE_NAME } from "../lib/queue.js";
 
 /**
@@ -243,7 +243,7 @@ export function createPollWorker() {
               const notifRole = userRoles.includes("monitor") ? "monitor" : "holder";
               const token = signToken({ userId: user.id, role: notifRole });
               try {
-                await sendStack4Notification({
+                await sendStack3Notification({
                   toEmail:   user.email,
                   toName:    user.name,
                   token,

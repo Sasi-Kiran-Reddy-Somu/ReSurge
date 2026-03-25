@@ -52,7 +52,7 @@ import { posts, thresholds, subreddits, users, holderAccounts, notifications, co
 import { fetchNewPostsMulti, refreshPostEngagement } from "./lib/redditFetcher.js";
 import { runStackTransitions } from "./lib/stackEngine.js";
 import { signToken } from "./lib/auth.js";
-import { sendStack4Notification } from "./lib/emailer.js";
+import { sendStack3Notification } from "./lib/emailer.js";
 import { eq, and, lt, sql, isNull, inArray, desc } from "drizzle-orm";
 
 const POLL_INTERVAL_MS = 60_000;
@@ -272,7 +272,7 @@ async function runPoll() {
           const notifRole = userRoles.includes("monitor") ? "monitor" : "holder";
           const token = signToken({ userId: user.id, role: notifRole });
           try {
-            await sendStack4Notification({
+            await sendStack3Notification({
               toEmail:   user.email,
               toName:    user.name,
               token,

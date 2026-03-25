@@ -4,7 +4,7 @@ import { users, monitorAssignments, holderAccounts, invitedUsers } from "../db/s
 import { eq, sql, desc } from "drizzle-orm";
 import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 import { hashPassword } from "../lib/auth.js";
-import { sendInviteEmail, sendStack4Notification } from "../lib/emailer.js";
+import { sendInviteEmail, sendStack3Notification } from "../lib/emailer.js";
 import { signToken } from "../lib/auth.js";
 
 export const adminRoutes = new Hono();
@@ -338,7 +338,7 @@ adminRoutes.post("/test-email", async (c) => {
   if (!to) return c.json({ error: "to is required" }, 400);
   const token = signToken({ userId: "test", role: "holder" });
   try {
-    await sendStack4Notification({
+    await sendStack3Notification({
       toEmail:   to,
       toName:    "Test User",
       token,

@@ -77,7 +77,7 @@ export async function sendInviteEmail(opts: {
 }
 
 
-export async function sendStack4Notification(opts: {
+export async function sendStack3Notification(opts: {
   toEmail:    string;
   toName:     string;
   token:      string;

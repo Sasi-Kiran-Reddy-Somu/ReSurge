@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db/client.js";
-import { subreddits, posts, holderAccounts, notifications } from "../db/schema.js";
+import { subreddits, posts, holderAccounts, notifications, thresholds, thresholdEdits, userSubreddits, generatedComments, commentScores } from "../db/schema.js";
 import { eq, and, isNotNull, gte, sql, inArray } from "drizzle-orm";
 
 export const subredditRoutes = new Hono();
@@ -209,16 +209,54 @@ subredditRoutes.patch("/:name/pause", async (c) => {
 
 // DELETE /api/subreddits/:id  (id = UUID)
 // Also accepts name as fallback via ?name= query param
+// Hard-deletes the subreddit and all associated data.
 subredditRoutes.delete("/:id", async (c) => {
   const id = c.req.param("id");
   const nameParam = c.req.query("name");
 
+  // Resolve subreddit name
+  let name: string | undefined;
   if (nameParam) {
-    // Fallback: delete by name (for backwards compat)
-    await db.update(subreddits).set({ isActive: false }).where(eq(subreddits.name, nameParam.toLowerCase()));
+    name = nameParam.toLowerCase();
   } else {
-    await db.update(subreddits).set({ isActive: false }).where(eq(subreddits.id, id));
+    const [row] = await db.select({ name: subreddits.name }).from(subreddits).where(eq(subreddits.id, id)).limit(1);
+    name = row?.name;
   }
+
+  if (!name) return c.json({ ok: true }); // already gone
+
+  // 1. Delete comment_scores for this subreddit's notifications
+  const notifIds = await db.select({ id: notifications.id }).from(notifications).where(eq(notifications.subreddit, name));
+  if (notifIds.length > 0) {
+    await db.delete(commentScores).where(inArray(commentScores.notificationId, notifIds.map(n => n.id)));
+  }
+
+  // 2. Delete notifications
+  await db.delete(notifications).where(eq(notifications.subreddit, name));
+
+  // 3. Delete generated_comments for this subreddit's posts
+  const postIds = await db.select({ id: posts.id }).from(posts).where(eq(posts.subreddit, name));
+  if (postIds.length > 0) {
+    await db.delete(generatedComments).where(inArray(generatedComments.postId, postIds.map(p => p.id)));
+  }
+
+  // 4. Delete posts
+  await db.delete(posts).where(eq(posts.subreddit, name));
+
+  // 5. Delete per-subreddit thresholds and edit history
+  await db.delete(thresholds).where(eq(thresholds.subreddit, name));
+  await db.delete(thresholdEdits).where(eq(thresholdEdits.subreddit, name));
+
+  // 6. Delete user_subreddits subscriptions
+  await db.delete(userSubreddits).where(eq(userSubreddits.subreddit, name));
+
+  // 7. Remove from holder_accounts.subreddits arrays (handles both active and paused ~name)
+  await db.update(holderAccounts).set({
+    subreddits: sql`array_remove(array_remove(${holderAccounts.subreddits}, ${name}), ${'~' + name})`,
+  });
+
+  // 8. Hard-delete the subreddit row
+  await db.delete(subreddits).where(eq(subreddits.name, name));
 
   return c.json({ ok: true });
 });

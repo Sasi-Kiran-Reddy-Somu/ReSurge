@@ -15,7 +15,7 @@ async function fetchTopComments(subreddit: string, redditId: string): Promise<st
     return comments
       .map((c: any) => c?.data?.body as string)
       .filter((b: string) => b && b !== "[deleted]" && b !== "[removed]" && b.length > 10)
-      .slice(0, 8);
+      .slice(0, 4);
   } catch {
     return [];
   }
