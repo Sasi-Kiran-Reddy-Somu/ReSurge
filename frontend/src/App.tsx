@@ -210,7 +210,7 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
            selectedMonitor
              ? selectedMonitorHolder
                ? <HolderDetail holder={selectedMonitorHolder} onBack={() => setSelectedMonitorHolder(null)} />
-               : <MonitorDetail monitor={selectedMonitor} onBack={() => { setSelectedMonitor(null); setSelectedMonitorHolder(null); }} onSelectHolder={(h: any) => setSelectedMonitorHolder(h)} />
+               : <HolderDetail holder={selectedMonitor} onBack={() => { setSelectedMonitor(null); setSelectedMonitorHolder(null); }} monitorId={selectedMonitor.id} onSelectHolder={(h: any) => setSelectedMonitorHolder(h)} />
              : <MonitorPanel onSelectMonitor={(m: any) => { setSelectedMonitor(m); setSelectedMonitorHolder(null); }} />
          ) :
          view === "holders" ? (
@@ -416,7 +416,7 @@ function MonitorDetail({ monitor, onBack, onSelectHolder }: any) {
   );
 }
 
-function HolderDetail({ holder, onBack }: any) {
+function HolderDetail({ holder, onBack, monitorId, onSelectHolder }: any) {
   const [detail, setDetail] = useState<any>(null);
   const [loadErr, setLoadErr] = useState<any>(null);
   const [accountId, setAccountId] = useState<any>(null);
@@ -425,6 +425,17 @@ function HolderDetail({ holder, onBack }: any) {
   const [search, setSearch] = useState("");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [assignedHolders, setAssignedHolders] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!monitorId) return;
+    Promise.all([
+      reqM("GET", `/admin/monitors/${monitorId}/assignments`),
+      reqM("GET", "/admin/holders"),
+    ]).then(([assignments, allHolders]: any) => {
+      setAssignedHolders(allHolders.filter((h: any) => assignments.some((a: any) => a.holderId === h.id)));
+    }).catch(() => {});
+  }, [monitorId]);
 
   useEffect(() => {
     setDetail(null); setLoadErr(null); setAccountId(null); setSearch(""); setTimeFilter("all"); setStatusFilter("all");
@@ -515,6 +526,27 @@ function HolderDetail({ holder, onBack }: any) {
       </div>
 
       <div style={{flex:1,overflowY:"auto",padding:"24px 32px",display:"flex",flexDirection:"column",gap:24}}>
+
+        {/* ── Assigned holders (monitor view only) ── */}
+        {monitorId && (
+          <div>
+            <div style={{fontSize:10,color:C_M.dim,fontWeight:700,letterSpacing:"0.1em",marginBottom:12}}>ASSIGNED HOLDERS · {assignedHolders.length}</div>
+            {assignedHolders.length === 0
+              ? <div style={{fontSize:13,color:C_M.dim}}>No holders assigned yet.</div>
+              : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
+                  {assignedHolders.map((h: any) => (
+                    <div key={h.id} onClick={() => onSelectHolder && onSelectHolder(h)}
+                      style={{background:C_M.surface,border:`1px solid ${C_M.border}`,borderRadius:10,padding:"14px 18px",cursor:"pointer",transition:"background 0.1s"}}
+                      onMouseEnter={(e: any) => e.currentTarget.style.background="#13161F"}
+                      onMouseLeave={(e: any) => e.currentTarget.style.background=C_M.surface}>
+                      <div style={{fontSize:13,fontWeight:600,color:C_M.text}}>{h.name}</div>
+                      <div style={{fontSize:11,color:C_M.muted,marginTop:2}}>{h.email}</div>
+                    </div>
+                  ))}
+                </div>
+            }
+          </div>
+        )}
 
         {/* ── Time filter — above stats ── */}
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
