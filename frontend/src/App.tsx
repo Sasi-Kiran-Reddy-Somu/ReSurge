@@ -220,7 +220,7 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
          ) :
          view === "notifications" ? <AllNotifications /> :
          view === "all-edits" ? <AllEdits /> :
-         view === "subreddits" ? <SubredditsPanel subreddits={subreddits} onSubredditRemoved={removeSubreddit} onSubredditAdded={(s: any) => addSubreddit(s.name).catch(()=>{})} showToast={showToast} /> : (
+         view === "subreddits" ? <SubredditsPanel subreddits={subreddits} onSubredditRemoved={removeSubreddit} onSubredditAdded={(s: any) => addSubreddit(s.name).catch(()=>{})} showToast={showToast} onOpenProfile={(user: any) => { if (user.role === "monitor") { changeView("monitors"); setSelectedMonitor(user); setSelectedMonitorHolder(null); } else { changeView("holders"); setSelectedHolder(user); } }} /> : (
           <>
             <div style={{ padding:"14px 24px 0", borderBottom:"1px solid #1A1D2E", flexShrink:0 }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>

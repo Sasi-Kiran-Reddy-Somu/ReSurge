@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { db } from "../db/client.js";
-import { subreddits, posts, holderAccounts, notifications, thresholds, thresholdEdits, userSubreddits, generatedComments, commentScores } from "../db/schema.js";
+import { subreddits, posts, holderAccounts, notifications, thresholds, thresholdEdits, userSubreddits, generatedComments, commentScores, users } from "../db/schema.js";
 import { eq, and, isNotNull, gte, sql, inArray } from "drizzle-orm";
 
 export const subredditRoutes = new Hono();
@@ -135,6 +135,31 @@ subredditRoutes.get("/:name/stats", async (c) => {
     totalAlerted: Number(totalAlerted),
     visibleToHolders: subRow.visibleToHolders,
   });
+});
+
+// GET /api/subreddits/:name/subscribers — list of users subscribed via holder accounts
+subredditRoutes.get("/:name/subscribers", async (c) => {
+  const name = c.req.param("name").toLowerCase();
+
+  const accounts = await db
+    .select({ holderId: holderAccounts.holderId })
+    .from(holderAccounts)
+    .where(sql`${name} = ANY(${holderAccounts.subreddits})`);
+
+  if (accounts.length === 0) return c.json([]);
+
+  const holderIds = [...new Set(accounts.map(a => a.holderId))];
+
+  const userRows = await db
+    .select({ id: users.id, name: users.name, email: users.email, role: users.role, roles: users.roles })
+    .from(users)
+    .where(and(
+      inArray(users.id, holderIds),
+      eq(users.isActive, true),
+      eq(users.isDeleted, false),
+    ));
+
+  return c.json(userRows);
 });
 
 // POST /api/subreddits  { name: "entrepreneur" }

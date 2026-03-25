@@ -18,11 +18,96 @@ const C: any = {
   accent: "#FF4500", green: "#22C55E", amber: "#F59E0B", red: "#EF4444", blue: "#3B82F6",
 };
 
-function StatBox({ label, value, color = C.sub, unit = "" }: any) {
+function StatBox({ label, value, color = C.sub, unit = "", onClick }: any) {
   return (
-    <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 20px", flex: 1, minWidth: 120 }}>
+    <div onClick={onClick} style={{ background: C.bg, border: `1px solid ${onClick ? color + "40" : C.border}`, borderRadius: 10, padding: "16px 20px", flex: 1, minWidth: 120, cursor: onClick ? "pointer" : "default", transition: "border-color 0.15s" }}
+      onMouseEnter={(e: any) => { if (onClick) e.currentTarget.style.borderColor = color + "80"; }}
+      onMouseLeave={(e: any) => { if (onClick) e.currentTarget.style.borderColor = color + "40"; }}>
       <div style={{ fontSize: 22, fontWeight: 800, color }}>{value}<span style={{ fontSize: 13, fontWeight: 400, color: C.muted, marginLeft: 4 }}>{unit}</span></div>
-      <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{label}</div>
+      <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{label}{onClick && <span style={{ marginLeft: 5, fontSize: 10, color: color, opacity: 0.7 }}>↗ view</span>}</div>
+    </div>
+  );
+}
+
+function SubscribersModal({ subName, onClose, onOpenProfile }: any) {
+  const [subscribers, setSubscribers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | "holder" | "monitor">("all");
+
+  useEffect(() => {
+    req("GET", `/subreddits/${subName}/subscribers`)
+      .then(setSubscribers)
+      .catch(() => setSubscribers([]))
+      .finally(() => setLoading(false));
+  }, [subName]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const filtered = subscribers.filter(u => {
+    if (roleFilter !== "all" && u.role !== roleFilter) return false;
+    if (search) return u.name?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase());
+    return true;
+  });
+
+  const ROLE_COLOR: any = { holder: C.amber, monitor: C.blue };
+  const ROLE_LABEL: any = { holder: "Holder", monitor: "Monitor" };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 99998, background: "#00000090", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
+      <div style={{ background: "#0F1117", border: `1px solid ${C.border}`, borderRadius: 14, width: 480, maxHeight: "70vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px #000000bb" }} onClick={(e: any) => e.stopPropagation()}>
+        {/* Header */}
+        <div style={{ padding: "18px 22px 14px", borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Subscribers · <span style={{ color: C.accent }}>r/{subName}</span></div>
+            <button onClick={onClose} style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "0 2px" }}>✕</button>
+          </div>
+          <input value={search} onChange={(e: any) => setSearch(e.target.value)} placeholder="Search by name or email…"
+            style={{ width: "100%", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: "8px 12px", color: C.text, fontFamily: "inherit", fontSize: 12, outline: "none", boxSizing: "border-box" as const }} />
+          <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+            {(["all", "holder", "monitor"] as const).map(f => {
+              const col = f === "all" ? C.sub : ROLE_COLOR[f];
+              const active = roleFilter === f;
+              return (
+                <button key={f} onClick={() => setRoleFilter(f)}
+                  style={{ background: active ? col + "18" : "none", border: active ? `1px solid ${col}40` : `1px solid ${C.border}`, borderRadius: 6, padding: "5px 12px", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: active ? 700 : 500, color: active ? col : C.muted }}>
+                  {f === "all" ? "All" : ROLE_LABEL[f]}
+                </button>
+              );
+            })}
+            <span style={{ marginLeft: "auto", fontSize: 11, color: C.muted, alignSelf: "center" }}>{filtered.length} shown</span>
+          </div>
+        </div>
+        {/* List */}
+        <div style={{ overflowY: "auto", flex: 1, padding: "8px 0" }}>
+          {loading ? (
+            <div style={{ padding: "32px 0", textAlign: "center", color: C.muted, fontSize: 13 }}>Loading…</div>
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: "32px 0", textAlign: "center", color: C.muted, fontSize: 13 }}>
+              {subscribers.length === 0 ? "No subscribers yet." : "No matches."}
+            </div>
+          ) : filtered.map((u: any) => {
+            const rc = ROLE_COLOR[u.role] ?? C.sub;
+            return (
+              <div key={u.id}
+                onClick={() => { onOpenProfile(u); onClose(); }}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 22px", cursor: "pointer", transition: "background 0.1s" }}
+                onMouseEnter={(e: any) => { e.currentTarget.style.background = "#13161F"; }}
+                onMouseLeave={(e: any) => { e.currentTarget.style.background = "transparent"; }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{u.name}</div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{u.email}</div>
+                </div>
+                <span style={{ fontSize: 10, color: rc, background: rc + "18", padding: "2px 8px", borderRadius: 10, fontWeight: 700, flexShrink: 0 }}>{ROLE_LABEL[u.role] ?? u.role}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -44,13 +129,14 @@ function ConfirmModal({ title, message, confirmLabel="Confirm", onConfirm, onCan
   );
 }
 
-function SubredditDetail({ sub, onBack, onRemove, onToggleVisibility, onTogglePause }: any) {
+function SubredditDetail({ sub, onBack, onRemove, onToggleVisibility, onTogglePause, onOpenProfile }: any) {
   const [stats, setStats] = useState<any>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [toggling, setToggling] = useState(false);
   const [pausing, setPausing] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [showSubscribers, setShowSubscribers] = useState(false);
 
   useEffect(() => {
     setLoadingStats(true);
@@ -87,6 +173,9 @@ function SubredditDetail({ sub, onBack, onRemove, onToggleVisibility, onTogglePa
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {showSubscribers && (
+        <SubscribersModal subName={sub.name} onClose={() => setShowSubscribers(false)} onOpenProfile={onOpenProfile} />
+      )}
       {confirmRemove && (
         <ConfirmModal
           title={`Remove r/${sub.name}?`}
@@ -134,7 +223,7 @@ function SubredditDetail({ sub, onBack, onRemove, onToggleVisibility, onTogglePa
           <>
             <div style={{ fontSize: 11, color: C.dim, letterSpacing: "0.08em", marginBottom: 16, fontWeight: 600 }}>STATISTICS</div>
             <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 32 }}>
-              <StatBox label="Holders subscribed" value={stats.subscriberCount} color={C.blue} />
+              <StatBox label="Holders subscribed" value={stats.subscriberCount} color={C.blue} onClick={() => setShowSubscribers(true)} />
               <StatBox label="Avg alerts / day" value={stats.avgNotifiedPerDay} color={C.amber} unit="posts" />
               <StatBox label="Avg comments posted / day" value={stats.avgPostedPerDay} color={C.green} unit="posts" />
               <StatBox label="Total alerts ever" value={stats.totalAlerted} color={C.sub} />
@@ -200,7 +289,7 @@ function fireToast(msg: string) {
   setTimeout(() => { if (el.parentNode) el.remove(); }, 5000);
 }
 
-export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRemoved, onSubredditAdded, showToast }: any) {
+export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRemoved, onSubredditAdded, showToast, onOpenProfile }: any) {
   const [subs, setSubs] = useState<any[]>(initialSubs ?? []);
   const [selected, setSelected] = useState<any>(null);
   const [input, setInput] = useState("");
@@ -325,6 +414,7 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
         onRemove={handleRemove}
         onToggleVisibility={handleToggleVisibility}
         onTogglePause={handleTogglePause}
+        onOpenProfile={onOpenProfile}
       />
     );
   }
