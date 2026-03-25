@@ -118,7 +118,7 @@ function LoginGate({ onAuth }: { onAuth: (token: string, user: any, isNewSignup:
       <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:60 }}>
         <div style={{ width:320 }}>
           <div style={{ marginBottom:36 }}>
-            <div style={{ fontSize:24, fontWeight:700, color:"#F9FAFB", marginBottom:8 }}>Welcome back</div>
+            <div style={{ fontSize:24, fontWeight:700, color:"#F9FAFB", marginBottom:8 }}>Welcome</div>
             <div style={{ fontSize:14, color:"#6B7280" }}>Sign in with your Google account to continue.</div>
           </div>
           {busy && <div style={{ fontSize:13, color:"#6B7280", marginBottom:16 }}>Signing in…</div>}
