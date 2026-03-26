@@ -52,7 +52,7 @@ type RowAction = "resend" | "deactivate" | "activate" | "delete" | "role";
 function ActionsMenu({ row, onAction, busy }: { row: any; onAction: (action: RowAction, extra?: any) => void; busy: boolean }) {
   const [open, setOpen] = useState(false);
   const [roleMenu, setRoleMenu] = useState(false);
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0, up: false });
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -69,7 +69,8 @@ function ActionsMenu({ row, onAction, busy }: { row: any; onAction: (action: Row
   function toggleMenu() {
     if (!open && btnRef.current) {
       const r = btnRef.current.getBoundingClientRect();
-      setMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+      const up = window.innerHeight - r.bottom < 240;
+      setMenuPos({ top: up ? r.top - 240 - 6 : r.bottom + 6, right: window.innerWidth - r.right, up });
     }
     setOpen(o => !o); setRoleMenu(false);
   }
@@ -84,7 +85,7 @@ function ActionsMenu({ row, onAction, busy }: { row: any; onAction: (action: Row
         ⚙
       </button>
       {open && (
-        <div ref={menuRef} style={{ position: "fixed", top: menuPos.top, right: menuPos.right, background: "#13161F", border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", zIndex: 9999, minWidth: 170, boxShadow: "0 8px 32px #00000080" }}>
+        <div ref={menuRef} style={{ position: "fixed", top: menuPos.top, right: menuPos.right, background: "#13161F", border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", zIndex: 9999, minWidth: 170, boxShadow: "0 8px 32px #00000080", transform: menuPos.up ? "translateY(100%) translateY(12px)" : "none" }}>
           {!roleMenu ? (
             <>
               {/* Resend invite — for invited and active */}

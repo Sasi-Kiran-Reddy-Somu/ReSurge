@@ -530,6 +530,27 @@ function HolderDetail({ holder, onBack, monitorId, onSelectHolder }: any) {
         </div>
       </div>
 
+      {/* ── Assigned holders bar (monitor view only) — above accounts ── */}
+      {monitorId && (
+        <div style={{padding:"16px 32px",borderBottom:`1px solid ${C_M.border}`,flexShrink:0,background:C_M.surface}}>
+          <div style={{fontSize:10,color:C_M.dim,fontWeight:700,letterSpacing:"0.1em",marginBottom:12}}>ASSIGNED HOLDERS · {assignedHolders.length}</div>
+          {assignedHolders.length === 0
+            ? <div style={{fontSize:13,color:C_M.dim}}>No holders assigned yet.</div>
+            : <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {assignedHolders.map((h: any) => (
+                  <div key={h.id} onClick={() => onSelectHolder && onSelectHolder(h)}
+                    style={{background:"#0F1117",border:`1px solid ${C_M.border}`,borderRadius:10,padding:"10px 16px",cursor:"pointer",transition:"background 0.1s"}}
+                    onMouseEnter={(e: any) => e.currentTarget.style.background="#13161F"}
+                    onMouseLeave={(e: any) => e.currentTarget.style.background="#0F1117"}>
+                    <div style={{fontSize:13,fontWeight:600,color:C_M.text}}>{h.name}</div>
+                    <div style={{fontSize:11,color:C_M.muted,marginTop:2}}>{h.email}</div>
+                  </div>
+                ))}
+              </div>
+          }
+        </div>
+      )}
+
       <div style={{padding:"16px 32px",borderBottom:`1px solid ${C_M.border}`,flexShrink:0,background:C_M.surface}}>
         <div style={{fontSize:10,color:C_M.dim,fontWeight:700,letterSpacing:"0.1em",marginBottom:10}}>ACCOUNTS</div>
         {detail.accounts.length === 0
@@ -552,27 +573,6 @@ function HolderDetail({ holder, onBack, monitorId, onSelectHolder }: any) {
       </div>
 
       <div style={{flex:1,overflowY:"auto",padding:"24px 32px",display:"flex",flexDirection:"column",gap:24}}>
-
-        {/* ── Assigned holders (monitor view only) ── */}
-        {monitorId && (
-          <div>
-            <div style={{fontSize:10,color:C_M.dim,fontWeight:700,letterSpacing:"0.1em",marginBottom:12}}>ASSIGNED HOLDERS · {assignedHolders.length}</div>
-            {assignedHolders.length === 0
-              ? <div style={{fontSize:13,color:C_M.dim}}>No holders assigned yet.</div>
-              : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
-                  {assignedHolders.map((h: any) => (
-                    <div key={h.id} onClick={() => onSelectHolder && onSelectHolder(h)}
-                      style={{background:C_M.surface,border:`1px solid ${C_M.border}`,borderRadius:10,padding:"14px 18px",cursor:"pointer",transition:"background 0.1s"}}
-                      onMouseEnter={(e: any) => e.currentTarget.style.background="#13161F"}
-                      onMouseLeave={(e: any) => e.currentTarget.style.background=C_M.surface}>
-                      <div style={{fontSize:13,fontWeight:600,color:C_M.text}}>{h.name}</div>
-                      <div style={{fontSize:11,color:C_M.muted,marginTop:2}}>{h.email}</div>
-                    </div>
-                  ))}
-                </div>
-            }
-          </div>
-        )}
 
         {/* ── Time filter — above stats ── */}
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
@@ -1687,7 +1687,7 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
             : accounts.map((acc: any) => {
               const active = String(openAccId) === String(acc.id);
               return (
-                <div key={acc.id} onClick={() => { setOpenAccIdPersist(acc.id); setTab("all"); }}
+                <div key={acc.id} onClick={() => { setOpenAccIdPersist(acc.id); setTab("all"); setHolderMainTab("notifications"); }}
                   style={{display:"flex",alignItems:"center",background:active?"#111827":"none",borderLeft:active?`3px solid ${C_H.accent}`:"3px solid transparent",transition:"all 0.1s",cursor:"pointer",padding:"11px 20px"}}
                   onMouseEnter={(e: any) => { if (!active) e.currentTarget.style.background="#0F1117"; }}
                   onMouseLeave={(e: any) => { if (!active) e.currentTarget.style.background="none"; }}>
