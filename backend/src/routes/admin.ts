@@ -6,7 +6,7 @@ import { requireAuth, requireRole } from "../middleware/requireAuth.js";
 import { hashPassword } from "../lib/auth.js";
 import { sendInviteEmail, sendStack3Notification } from "../lib/emailer.js";
 import { signToken } from "../lib/auth.js";
-import { workerLastSeen } from "../lib/workerStatus.js";
+import { getWorkerStatus } from "../lib/workerStatus.js";
 
 export const adminRoutes = new Hono();
 
@@ -356,12 +356,11 @@ adminRoutes.post("/test-email", async (c) => {
 });
 
 // GET /api/admin/worker-status — returns whether the local worker is alive
-adminRoutes.get("/worker-status", (c) => {
-  const now = Date.now();
-  const alive = workerLastSeen !== null && (now - workerLastSeen) < 3 * 60 * 1_000;
+adminRoutes.get("/worker-status", async (c) => {
+  const { alive, lastSeen } = await getWorkerStatus();
   return c.json({
     alive,
-    lastSeen:   workerLastSeen,
-    secondsAgo: workerLastSeen ? Math.floor((now - workerLastSeen) / 1_000) : null,
+    lastSeen,
+    secondsAgo: lastSeen ? Math.floor((Date.now() - lastSeen) / 1_000) : null,
   });
 });

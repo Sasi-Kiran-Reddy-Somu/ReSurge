@@ -69,10 +69,10 @@ app.route("/api/leaderboard", leaderboardRoutes);
 
 // ── Worker heartbeat — called by local-worker after each poll ──
 // Uses JWT_SECRET as a shared secret (no user auth needed).
-app.post("/api/internal/heartbeat", (c) => {
+app.post("/api/internal/heartbeat", async (c) => {
   const secret = c.req.header("X-Worker-Secret");
   if (!secret || secret !== process.env.JWT_SECRET) return c.json({ error: "unauthorized" }, 401);
-  markWorkerAlive();
+  await markWorkerAlive();
   return c.json({ ok: true });
 });
 

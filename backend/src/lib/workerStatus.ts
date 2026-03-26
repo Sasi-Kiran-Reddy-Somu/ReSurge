@@ -1,8 +1,17 @@
-// Shared singleton — tracks when the local worker last pinged the backend.
-// In-memory: resets on Railway redeploy, but worker re-pings within 60s.
+// Persists worker heartbeat in Redis so it survives Railway redeploys.
+import { redis } from "./redis.js";
 
-export let workerLastSeen: number | null = null;
+const KEY = "worker:last_seen";
+const TTL = 60 * 10; // 10 minutes — auto-expires if worker dies
 
-export function markWorkerAlive(): void {
-  workerLastSeen = Date.now();
+export async function markWorkerAlive(): Promise<void> {
+  await redis.set(KEY, Date.now().toString(), "EX", TTL);
+}
+
+export async function getWorkerStatus(): Promise<{ alive: boolean; lastSeen: number | null }> {
+  const val = await redis.get(KEY);
+  if (!val) return { alive: false, lastSeen: null };
+  const lastSeen = parseInt(val, 10);
+  const alive = Date.now() - lastSeen < 3 * 60 * 1_000;
+  return { alive, lastSeen };
 }
