@@ -16,6 +16,9 @@ import { eq, and, lt } from "drizzle-orm";
  *
  * Returns IDs of posts that reached Stack 3 (for alerting).
  */
+const MAX_ENG_GATE    = 50;                    // discard if engagement exceeds this
+const MAX_POST_AGE_MS = 2 * 60 * 60 * 1_000;  // discard if post is older than 2h
+
 export async function runStackTransitions(
   subreddit: string,
   thresh: Thresholds
@@ -41,16 +44,25 @@ export async function runStackTransitions(
     if (post.stack === 1) {
       if (ageInStackMin >= thresh.s1MinAge) {
         if (post.engagement >= thresh.s1MinEng) {
-          // ✅ Advance to Stack 2 — evaluation window starts
-          await db
-            .update(posts)
-            .set({
-              stack:           2,
-              stackEnteredAt:  now,
-              engAtStackEntry: post.engagement,
-              updatedAt:       new Date(),
-            })
-            .where(eq(posts.id, post.id));
+          const postAgeMs = now - Number(post.redditCreatedAt);
+          if (post.engagement > MAX_ENG_GATE || postAgeMs > MAX_POST_AGE_MS) {
+            // ❌ Qualified threshold but too hot/old — discard
+            await db
+              .update(posts)
+              .set({ discarded: true, updatedAt: new Date() })
+              .where(eq(posts.id, post.id));
+          } else {
+            // ✅ Advance to Stack 2 — evaluation window starts
+            await db
+              .update(posts)
+              .set({
+                stack:           2,
+                stackEnteredAt:  now,
+                engAtStackEntry: post.engagement,
+                updatedAt:       new Date(),
+              })
+              .where(eq(posts.id, post.id));
+          }
         } else {
           // ❌ Discard — didn't meet engagement threshold
           await db
@@ -71,20 +83,29 @@ export async function runStackTransitions(
         const growth    = calcGrowthPct(baseline, post.engagement);
 
         if (growth >= thresh.s2GrowthPct) {
-          // ✅ Advance to Stack 3 — ALERT!
-          await db
-            .update(posts)
-            .set({
-              stack:           3,
-              stackEnteredAt:  now,
-              engAtStackEntry: post.engagement,
-              lastGrowth:      growth,
-              alertedAt:       now,
-              updatedAt:       new Date(),
-            })
-            .where(eq(posts.id, post.id));
+          const postAgeMs = now - Number(post.redditCreatedAt);
+          if (post.engagement > MAX_ENG_GATE || postAgeMs > MAX_POST_AGE_MS) {
+            // ❌ Qualified growth but too hot/old — discard
+            await db
+              .update(posts)
+              .set({ discarded: true, updatedAt: new Date() })
+              .where(eq(posts.id, post.id));
+          } else {
+            // ✅ Advance to Stack 3 — ALERT!
+            await db
+              .update(posts)
+              .set({
+                stack:           3,
+                stackEnteredAt:  now,
+                engAtStackEntry: post.engagement,
+                lastGrowth:      growth,
+                alertedAt:       now,
+                updatedAt:       new Date(),
+              })
+              .where(eq(posts.id, post.id));
 
-          newStack3Ids.push(post.id);
+            newStack3Ids.push(post.id);
+          }
         } else {
           // ❌ Didn't hit growth threshold by end of eval window — discard
           await db
