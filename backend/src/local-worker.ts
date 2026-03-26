@@ -315,6 +315,15 @@ async function runPoll() {
   }
 
   console.log(`[Local Worker] Poll complete in ${Date.now() - now}ms`);
+
+  // Ping Railway backend so the frontend can show worker liveness
+  try {
+    await fetch(`${process.env.APP_URL}/api/internal/heartbeat`, {
+      method: "POST",
+      headers: { "X-Worker-Secret": process.env.JWT_SECRET! },
+      signal: AbortSignal.timeout(5_000),
+    });
+  } catch { /* non-critical — don't abort on network hiccup */ }
 }
 
 // ── Parse Reddit comment ID from a posted link ─────────────────

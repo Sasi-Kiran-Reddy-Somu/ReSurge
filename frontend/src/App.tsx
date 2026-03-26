@@ -141,6 +141,8 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
   const [selectedMonitor, setSelectedMonitor] = useState<any>(null);
   const [selectedMonitorHolder, setSelectedMonitorHolder] = useState<any>(null);
   const [alertCount,    setAlertCount]    = useState(0);
+  const [workerAlive,   setWorkerAlive]   = useState<boolean | null>(null);
+  const [workerLastSeen, setWorkerLastSeen] = useState<number | null>(null);
 
   function loadAlertCount() {
     fetch("/api/admin/alerts", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
@@ -161,6 +163,18 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => { loadAlertCount(); }, []);
 
+  useEffect(() => {
+    function checkWorker() {
+      fetch("/api/admin/worker-status", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) { setWorkerAlive(d.alive); setWorkerLastSeen(d.lastSeen); } })
+        .catch(() => {});
+    }
+    checkWorker();
+    const iv = setInterval(checkWorker, 60_000);
+    return () => clearInterval(iv);
+  }, []);
+
   if (loading) return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", flexDirection:"column", gap:12 }}>
       <div style={{ width:8, height:8, background:"#22C55E", borderRadius:"50%" }} />
@@ -176,8 +190,20 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
     </div>
   );
 
+  const workerOfflineMinutes = workerLastSeen ? Math.floor((Date.now() - workerLastSeen) / 60_000) : null;
+
   return (
     <>
+    {workerAlive === false && (
+      <div style={{ position:"fixed", top:0, left:0, right:0, zIndex:99999, background:"#7F1D1D", borderBottom:"1px solid #EF444460", padding:"7px 20px", display:"flex", alignItems:"center", gap:10, fontFamily:"'IBM Plex Sans',sans-serif" }}>
+        <span style={{ fontSize:13 }}>⚠</span>
+        <span style={{ fontSize:12, color:"#FCA5A5", fontWeight:600 }}>
+          Local worker is offline
+          {workerOfflineMinutes !== null ? ` · last seen ${workerOfflineMinutes}m ago` : " · never connected"}
+        </span>
+        <span style={{ fontSize:11, color:"#F87171", marginLeft:4 }}>— no new posts are being tracked</span>
+      </div>
+    )}
     {toast && (
       <div style={{ position:"fixed", bottom:32, left:"50%", transform:"translateX(-50%)", zIndex:99999, background:"#1A2F1A", border:"1px solid #22C55E66", borderRadius:10, padding:"14px 24px", display:"flex", alignItems:"center", gap:10, boxShadow:"0 8px 40px #00000080", pointerEvents:"none", fontFamily:"'IBM Plex Sans',sans-serif" }}>
         <span style={{ fontSize:16 }}>✅</span>

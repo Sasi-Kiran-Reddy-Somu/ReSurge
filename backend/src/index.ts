@@ -17,6 +17,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
 import { db } from "./db/client.js";
+import { markWorkerAlive } from "./lib/workerStatus.js";
 import { subredditRoutes } from "./routes/subreddits.js";
 import { postRoutes }      from "./routes/posts.js";
 import { thresholdRoutes } from "./routes/thresholds.js";
@@ -65,6 +66,15 @@ app.route("/api/holder",     holderRoutes);
 app.route("/api/monitor",    monitorRoutes);
 app.route("/api/admin",      adminRoutes);
 app.route("/api/leaderboard", leaderboardRoutes);
+
+// ── Worker heartbeat — called by local-worker after each poll ──
+// Uses JWT_SECRET as a shared secret (no user auth needed).
+app.post("/api/internal/heartbeat", (c) => {
+  const secret = c.req.header("X-Worker-Secret");
+  if (!secret || secret !== process.env.JWT_SECRET) return c.json({ error: "unauthorized" }, 401);
+  markWorkerAlive();
+  return c.json({ ok: true });
+});
 
 app.get("/health", (c) => c.json({
   status: "ok",
