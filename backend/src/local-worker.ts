@@ -502,31 +502,23 @@ async function main() {
   setInterval(() => {
     runPoll().catch((err) => console.error("[Local Worker] Unhandled error in poll cycle:", (err as Error).message));
 
-    // Daily leaderboard rebuild at 09:30 UTC (3pm IST).
-    // Check DB instead of a narrow time window so restarts after 09:30 still catch up.
-    const nowUtc = new Date();
-    const utcH  = nowUtc.getUTCHours();
-    const utcM  = nowUtc.getUTCMinutes();
-    const pastRebuildTime = utcH > 9 || (utcH === 9 && utcM >= 30);
-    if (pastRebuildTime && lastLeaderboardRun !== nowUtc.toDateString()) {
-      // Ask the DB: was leaderboard already rebuilt today?
+    // Daily leaderboard rebuild — no fixed time, just keep retrying every poll
+    // until the DB confirms today's rebuild is done.
+    if (lastLeaderboardRun !== new Date().toDateString()) {
       db.select({ updatedAt: leaderboardCache.updatedAt })
         .from(leaderboardCache)
         .orderBy(desc(leaderboardCache.updatedAt))
         .limit(1)
         .then(([row]) => {
-          const todayUtcDate = nowUtc.toISOString().slice(0, 10); // "2026-03-26"
+          const todayUtcDate = new Date().toISOString().slice(0, 10);
           const rowDate      = row?.updatedAt ? new Date(row.updatedAt).toISOString().slice(0, 10) : null;
           if (rowDate === todayUtcDate) {
-            // Already ran today — just sync in-memory flag
-            lastLeaderboardRun = nowUtc.toDateString();
-            console.log("[Leaderboard] Already rebuilt today — skipping.");
+            lastLeaderboardRun = new Date().toDateString();
           } else {
             rebuildLeaderboard().catch(err => console.error("[Leaderboard] Error:", err.message));
           }
         })
         .catch(() => {
-          // DB check failed — fall back to running it
           rebuildLeaderboard().catch(err => console.error("[Leaderboard] Error:", err.message));
         });
     }
