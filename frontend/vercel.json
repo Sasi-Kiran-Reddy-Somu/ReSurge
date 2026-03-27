@@ -2,7 +2,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://resurge-production.up.railway.app/api/$1" },
+    { "source": "/api/(.*)", "destination": "https://api.resurge.cubehq.ai/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

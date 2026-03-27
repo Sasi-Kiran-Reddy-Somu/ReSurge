@@ -1,2 +1,19 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Vercel
 .vercel
+
+# TypeScript
 *.tsbuildinfo
+
+# OS
+.DS_Store

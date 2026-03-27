@@ -43,6 +43,7 @@ const allowedOrigins = [
 function isAllowedOrigin(origin: string): boolean {
   if (allowedOrigins.includes(origin)) return true;
   if (origin.endsWith(".vercel.app")) return true;
+  if (origin.endsWith(".cubehq.ai")) return true;
   if (origin.startsWith("http://localhost:")) return true;
   return false;
 }
