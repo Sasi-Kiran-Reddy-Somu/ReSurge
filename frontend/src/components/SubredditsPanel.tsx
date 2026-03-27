@@ -297,7 +297,7 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
   const [addBusy, setAddBusy] = useState(false);
   const [search, setSearch] = useState("");
   const [counts, setCounts] = useState<Record<string, { s1: number; s2: number; s3: number }>>({});
-  const [bulkStats, setBulkStats] = useState<Record<string, { subscriberCount: number; avgNotifiedPerDay: number }>>({});
+  const [bulkStats, setBulkStats] = useState<Record<string, { subscriberCount: number; avgNotifiedPerDay: number; notifs48h: number }>>({});
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<1 | -1>(1);
 
@@ -321,8 +321,8 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
 
   useEffect(() => {
     req("GET", "/subreddits/bulk-stats").then((rows: any[]) => {
-      const map: Record<string, { subscriberCount: number; avgNotifiedPerDay: number }> = {};
-      for (const r of rows) map[r.name] = { subscriberCount: r.subscriberCount, avgNotifiedPerDay: r.avgNotifiedPerDay };
+      const map: Record<string, { subscriberCount: number; avgNotifiedPerDay: number; notifs48h: number }> = {};
+      for (const r of rows) map[r.name] = { subscriberCount: r.subscriberCount, avgNotifiedPerDay: r.avgNotifiedPerDay, notifs48h: r.notifs48h ?? 0 };
       setBulkStats(map);
     }).catch(() => {});
   }, [subs.length]);
@@ -346,6 +346,7 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
     if (col === "s3") return c?.s3 ?? -1;
     if (col === "subscribers") return bs?.subscriberCount ?? -1;
     if (col === "avg") return bs?.avgNotifiedPerDay ?? -1;
+    if (col === "notifs48h") return bs?.notifs48h ?? -1;
     return 0;
   }
 
@@ -462,6 +463,7 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
                   ["s2",          "S2",             "#3B82F6", "center", "14px 0 10px"],
                   ["s3",          "S3",             "#F59E0B", "center", "14px 0 10px"],
                   ["subscribers", "SUBSCRIBERS",    C.blue,   "center", "14px 12px 10px"],
+                  ["notifs48h",   "NOTIFS 48H",     C.green,  "center", "14px 12px 10px"],
                   ["avg",         "AVG NOTIFS/DAY", C.amber,  "center", "14px 16px 10px 0"],
                 ] as const).map(([col, label, color, align, padding]) => {
                   const active = sortCol === col;
@@ -510,6 +512,9 @@ export default function SubredditsPanel({ subreddits: initialSubs, onSubredditRe
                     </td>
                     <td style={{ textAlign: "center", padding: "14px 12px", fontSize: 13, fontWeight: 700, color: C.blue }}>
                       {bs ? bs.subscriberCount : "—"}
+                    </td>
+                    <td style={{ textAlign: "center", padding: "14px 12px", fontSize: 13, fontWeight: 700, color: C.green }}>
+                      {bs ? bs.notifs48h : "—"}
                     </td>
                     <td style={{ textAlign: "center", padding: "14px 16px 14px 0", fontSize: 13, fontWeight: 700, color: C.amber }}>
                       {bs ? bs.avgNotifiedPerDay : "—"}

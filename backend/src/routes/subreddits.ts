@@ -26,6 +26,7 @@ subredditRoutes.get("/", async (c) => {
 // GET /api/subreddits/bulk-stats — subscriberCount + avgNotifiedPerDay for all active subs
 subredditRoutes.get("/bulk-stats", async (c) => {
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const fortyEightHoursAgo = Date.now() - 48 * 60 * 60 * 1000;
 
   const allSubs = await db.select({ name: subreddits.name, addedAt: subreddits.addedAt })
     .from(subreddits).where(eq(subreddits.isActive, true));
@@ -53,6 +54,15 @@ subredditRoutes.get("/bulk-stats", async (c) => {
 
   const alertMap = new Map(alertCounts.map(r => [r.subreddit, Number(r.count)]));
 
+  // Count alerted posts per subreddit in last 48 hours
+  const alert48hCounts = await db
+    .select({ subreddit: posts.subreddit, count: sql<number>`count(*)::int` })
+    .from(posts)
+    .where(and(inArray(posts.subreddit, subNames), isNotNull(posts.alertedAt), gte(posts.alertedAt, fortyEightHoursAgo)))
+    .groupBy(posts.subreddit);
+
+  const alert48hMap = new Map(alert48hCounts.map(r => [r.subreddit, Number(r.count)]));
+
   const result = allSubs.map(s => {
     const daysSinceAdded = (Date.now() - new Date(s.addedAt).getTime()) / (24 * 60 * 60 * 1000);
     const windowDays = Math.max(1, Math.min(30, daysSinceAdded));
@@ -61,6 +71,7 @@ subredditRoutes.get("/bulk-stats", async (c) => {
       name: s.name,
       subscriberCount: holderCountMap.get(s.name) ?? 0,
       avgNotifiedPerDay: Math.trunc((count / windowDays) * 10) / 10,
+      notifs48h: alert48hMap.get(s.name) ?? 0,
     };
   });
 
