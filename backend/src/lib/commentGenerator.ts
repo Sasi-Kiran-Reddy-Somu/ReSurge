@@ -100,7 +100,7 @@ Output only the comment text. Nothing else. No quotes around it.${customInstruct
     model: "gpt-5-mini",
     messages: [{ role: "user", content: prompt }],
     temperature: 0.92,
-    max_tokens: 300,
+    max_completion_tokens: 300,
   });
 
   const text = response.choices[0]?.message?.content?.trim() ?? "";
