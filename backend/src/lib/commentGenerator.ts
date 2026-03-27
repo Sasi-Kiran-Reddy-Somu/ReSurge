@@ -97,9 +97,10 @@ ${bannedStartersInstruction}- Never use these AI giveaway words/phrases: certain
 Output only the comment text. Nothing else. No quotes around it.${customInstruction}${avoidInstruction}`;
 
   const response = await client.chat.completions.create({
-    model: "gpt-5-mini",
+    model: "gpt-4o-mini",
     messages: [{ role: "user", content: prompt }],
-    max_completion_tokens: 300,
+    max_tokens: 300,
+    temperature: 0.92,
   });
 
   const text = response.choices[0]?.message?.content?.trim() ?? "";
