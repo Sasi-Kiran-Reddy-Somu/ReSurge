@@ -35,8 +35,11 @@ subredditRoutes.get("/bulk-stats", async (c) => {
 
   const subNames = allSubs.map(s => s.name);
 
-  // Count holder accounts subscribed per subreddit (single query)
-  const holderRows = await db.select({ subreddits: holderAccounts.subreddits }).from(holderAccounts);
+  // Count holder accounts subscribed per subreddit — only active, non-deleted users
+  const holderRows = await db
+    .select({ subreddits: holderAccounts.subreddits })
+    .from(holderAccounts)
+    .innerJoin(users, and(eq(users.id, holderAccounts.holderId), eq(users.isActive, true), eq(users.isDeleted, false)));
   const holderCountMap = new Map<string, number>();
   for (const row of holderRows) {
     for (const sub of (row.subreddits ?? [])) {
@@ -93,10 +96,11 @@ subredditRoutes.get("/:name/stats", async (c) => {
 
   if (!subRow) return c.json({ error: "Not found" }, 404);
 
-  // Count accounts that include this subreddit
+  // Count accounts that include this subreddit — only active, non-deleted users
   const [{ count: subscriberCount }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(holderAccounts)
+    .innerJoin(users, and(eq(users.id, holderAccounts.holderId), eq(users.isActive, true), eq(users.isDeleted, false)))
     .where(sql`${name} = ANY(${holderAccounts.subreddits})`);
 
   // Count posts that reached stack 4 in last 30 days
