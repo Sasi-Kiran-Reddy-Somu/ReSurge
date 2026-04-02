@@ -24,7 +24,7 @@ const SORT_BTNS: { key: SortKey; label: string; color: string; tip: string }[] =
 
 function fmt1(n: number) { return Number.isFinite(n) ? n.toFixed(1) : "0.0"; }
 
-export default function LeaderboardPanel({ token, role: roleProp }: { token: string; role?: string }) {
+export default function LeaderboardPanel({ token, role: roleProp, onSelectUser }: { token: string; role?: string; onSelectUser?: (user: any) => void }) {
   const role = roleProp ?? (() => { try { return JSON.parse(localStorage.getItem("user_data") ?? "{}").role ?? "monitor"; } catch { return "monitor"; } })();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,13 +127,19 @@ export default function LeaderboardPanel({ token, role: roleProp }: { token: str
               const isTop3 = idx < 3;
               const activeSortColor = SORT_BTNS.find(s => s.key === sortBy)?.color ?? C.text;
               return (
-                <div key={row.userId} style={{
-                  background: isTop3 ? `${RANK_COLORS[idx]}08` : C.surface,
-                  border: `1px solid ${isTop3 ? RANK_COLORS[idx] + "30" : C.border}`,
-                  borderRadius: 12, padding: "16px 20px",
-                  display: "grid", gridTemplateColumns: "40px 1fr repeat(6, 82px)",
-                  alignItems: "center", gap: 10,
-                }}>
+                <div key={row.userId}
+                  onClick={() => onSelectUser?.({ id: row.userId, name: row.name, role: row.role })}
+                  onMouseEnter={(e: any) => { if (onSelectUser) e.currentTarget.style.background = isTop3 ? `${RANK_COLORS[idx]}14` : "#13161F"; }}
+                  onMouseLeave={(e: any) => { e.currentTarget.style.background = isTop3 ? `${RANK_COLORS[idx]}08` : C.surface; }}
+                  style={{
+                    background: isTop3 ? `${RANK_COLORS[idx]}08` : C.surface,
+                    border: `1px solid ${isTop3 ? RANK_COLORS[idx] + "30" : C.border}`,
+                    borderRadius: 12, padding: "16px 20px",
+                    display: "grid", gridTemplateColumns: "40px 1fr repeat(6, 82px)",
+                    alignItems: "center", gap: 10,
+                    cursor: onSelectUser ? "pointer" : "default",
+                    transition: "background 0.1s",
+                  }}>
                   {/* Rank */}
                   <div style={{ textAlign: "center" }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: isTop3 ? RANK_COLORS[idx] : C.dim }}>#{idx + 1}</span>

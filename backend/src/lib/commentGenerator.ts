@@ -48,7 +48,15 @@ export async function generateComment(post: {
     ? `\n\nPost body:\n${post.selftext.slice(0, 800)}`
     : "";
 
-  const toneInstruction = tone ? `- Write in a ${tone} tone.\n` : "";
+  const toneInstruction = tone
+    ? `TONE (this overrides the default casual voice where they conflict — apply these tones throughout):
+- The requested tone(s): ${tone}.
+- Let these shape your word choice, reaction, and what you choose to say. A comment can still be short and casual AND ${tone}.
+- "Empathetic" means acknowledge feelings, relate, validate — don't jump to advice.
+- "Informative" means add a genuine useful fact or insight, but only if the post invites it.
+- "Supportive" means encourage or reassure, not lecture.
+- "Casual/Witty/Humorous" means lighter, funnier, more laid-back — match that energy.\n\n`
+    : "";
   const customInstruction = customPrompt ? `\nAdditional instruction: ${customPrompt}` : "";
   const avoidInstruction = previousComments && previousComments.length > 0
     ? `\n\nIMPORTANT — These comments have already been posted on this thread by other users of our tool. Do NOT copy their structure, opening words, sentence patterns, or ideas. Write something distinctly different:\n${previousComments.map((c, i) => `[${i + 1}] ${c}`).join("\n\n")}`
@@ -69,6 +77,12 @@ export async function generateComment(post: {
 
 Post title: ${post.title}${postBody}${commentsContext}
 
+${toneInstruction}UNDERSTAND THE POST BEFORE YOU WRITE:
+- First figure out what kind of post this is: (a) asking for help or advice, (b) sharing a story or experience, (c) asking a question, (d) venting or ranting.
+- If the post is sharing a story or experience (NOT asking for help), react to what they said — relate, sympathize, express surprise, ask a follow-up — do NOT give advice or solutions they didn't ask for.
+- If the post already mentions the cause or resolution of a problem, do NOT suggest causes or fixes — they already know. React to what they discovered instead.
+- Match your comment type to the post type. A vent gets empathy. A story gets a reaction. A question gets an answer. A help request gets advice.
+
 Your comment must pass AI detection as 100% human-written. To achieve this, follow every rule below without exception:
 
 LENGTH & STRUCTURE:
@@ -83,7 +97,7 @@ LANGUAGE & VOICE:
 - Minor grammar imperfections are expected and required — don't correct them. Things like "me and my friend" instead of "my friend and I", missing commas, run-ons, etc.
 - Vary capitalization naturally — don't capitalize everything perfectly. Lowercase is fine.
 - No punctuation at the end sometimes. Or just use … or lol as an ending.
-${toneInstruction}
+
 WHAT TO AVOID (strictly):
 - Never sound polished, structured, or complete.
 - No bold, italic, bullet points, numbered lists, headers.

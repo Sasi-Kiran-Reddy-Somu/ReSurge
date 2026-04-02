@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import ReactDOM from "react-dom";
 import { api } from "../utils/api";
 
 const TONES = ["Witty","Empathetic","Informative","Casual","Enthusiastic","Controversial","Professional","Humorous","Supportive"];
@@ -50,8 +51,8 @@ function CommentModal({ post, onClose }: any) {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.78)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200, padding:32 }}>
+  return ReactDOM.createPortal(
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.78)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999, padding:32 }}>
       <div style={{ background:"#0F1117", border:"1px solid #2A1F00", borderLeft:`4px solid ${ACCENT}`, borderRadius:16, padding:36, maxWidth:660, width:"100%", maxHeight:"86vh", overflowY:"auto" }}>
 
         {/* Header */}
@@ -124,7 +125,8 @@ function CommentModal({ post, onClose }: any) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

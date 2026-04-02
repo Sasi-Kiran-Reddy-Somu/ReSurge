@@ -230,7 +230,7 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
       />
 
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-        {view === "leaderboard" ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} role="main" /> :
+        {view === "leaderboard" ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} role="main" onSelectUser={(u: any) => { if (u.role === "monitor") { setSelectedMonitor(u); setSelectedMonitorHolder(null); changeView("monitors"); } else { setSelectedHolder(u); changeView("holders"); } }} /> :
          view === "add-users" ? <AddUsersPanel onSelectHolder={(h: any) => { setSelectedHolder(h); changeView("holders"); }} onAckChange={loadAlertCount} /> :
          view === "monitors" ? (
            selectedMonitor
@@ -1176,7 +1176,7 @@ function MonitorDashboard({ user, onLogout, initialPostId }: any) {
       </div>
 
       {section === "leaderboard"
-        ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} role="monitor" />
+        ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} role="monitor" onSelectUser={(u: any) => { if (u.role === "holder") setSelectedHolder(u); }} />
         : section === "accounts"
         ? openAccId
           ? <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
