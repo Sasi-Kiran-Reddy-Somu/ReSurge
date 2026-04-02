@@ -230,7 +230,7 @@ function MainApp({ onLogout }: { onLogout: () => void }) {
       />
 
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-        {view === "leaderboard" ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} role="main" onSelectUser={(u: any) => { if (u.role === "monitor") { setSelectedMonitor(u); setSelectedMonitorHolder(null); changeView("monitors"); } else { setSelectedHolder(u); changeView("holders"); } }} /> :
+        {view === "leaderboard" ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} role="main" onSelectUser={(u: any) => { if (u.role === "monitor") { setSelectedMonitor(u); setSelectedMonitorHolder(null); setView("monitors"); sessionStorage.setItem("main_view", "monitors"); } else { setSelectedHolder(u); setView("holders"); sessionStorage.setItem("main_view", "holders"); } }} /> :
          view === "add-users" ? <AddUsersPanel onSelectHolder={(h: any) => { setSelectedHolder(h); changeView("holders"); }} onAckChange={loadAlertCount} /> :
          view === "monitors" ? (
            selectedMonitor
@@ -1008,9 +1008,9 @@ function MonitorOnboarding({ user, onDone }: { user: any; onDone: () => void }) 
 }
 
 function MonitorDashboard({ user, onLogout, initialPostId }: any) {
-  const [section, setSection] = useState("accounts");
-  const [openAccId, setOpenAccId] = useState<any>(null);
-  const [mainTab, setMainTab] = useState("notifications");
+  const [section, setSection] = useState(() => sessionStorage.getItem("monitor_section") || "accounts");
+  const [openAccId, setOpenAccId] = useState<any>(() => sessionStorage.getItem("monitor_acc_id") || null);
+  const [mainTab, setMainTab] = useState(() => sessionStorage.getItem("monitor_main_tab") || "notifications");
   const [accounts, setAccounts] = useState<any[]>([]);
   const [showAddAcc, setShowAddAcc] = useState(false);
   const [delAccBusy, setDelAccBusy] = useState<any>(null);
@@ -1026,17 +1026,27 @@ function MonitorDashboard({ user, onLogout, initialPostId }: any) {
   useEffect(() => { const id = setInterval(() => setTickM(t=>t+1), 30000); return () => clearInterval(id); }, []);
   const isPausedM = pausedUntilM && pausedUntilM > Date.now();
 
+  useEffect(() => { sessionStorage.setItem("monitor_section", section); }, [section]);
+  useEffect(() => { if (openAccId) sessionStorage.setItem("monitor_acc_id", String(openAccId)); }, [openAccId]);
+  useEffect(() => { sessionStorage.setItem("monitor_main_tab", mainTab); }, [mainTab]);
+
   useEffect(() => { loadAccounts(); reqM("GET", "/monitor/holders").then(setHolders).catch(() => {}); reqM("GET", "/holder/pause-status").then((d:any) => setPausedUntilM(d.pausedUntil??null)).catch(()=>{}); }, []);
 
   function loadAccounts() {
     reqM("GET", "/holder/accounts").then((accs: any[]) => {
       setAccounts(accs);
-      if (accs.length > 0) setOpenAccId((id: any) => id || accs[0].id);
+      if (accs.length > 0) {
+        setOpenAccId((id: any) => {
+          const savedId = sessionStorage.getItem("monitor_acc_id");
+          const match = savedId && accs.find((a: any) => String(a.id) === String(savedId));
+          return match ? match.id : (id || accs[0].id);
+        });
+      }
     }).catch(() => {});
   }
   async function deleteAccount(id: any) {
     setDelAccBusy(id);
-    try { await reqM("DELETE", `/holder/accounts/${id}`); loadAccounts(); if (openAccId === id) setOpenAccId(null); }
+    try { await reqM("DELETE", `/holder/accounts/${id}`); loadAccounts(); if (openAccId === id) { setOpenAccId(null); sessionStorage.removeItem("monitor_acc_id"); } }
     catch (e: any) { alert(e.message); } finally { setDelAccBusy(null); }
   }
 
@@ -1176,7 +1186,7 @@ function MonitorDashboard({ user, onLogout, initialPostId }: any) {
       </div>
 
       {section === "leaderboard"
-        ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} role="monitor" onSelectUser={(u: any) => { if (u.role === "holder") setSelectedHolder(u); }} />
+        ? <LeaderboardPanel token={localStorage.getItem("token") ?? ""} role="monitor" onSelectUser={(u: any) => { if (u.role === "holder") { setSelectedHolder(u); setSection("holders"); } }} />
         : section === "accounts"
         ? openAccId
           ? <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -1579,7 +1589,7 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
   const [notifs, setNotifs] = useState<any[]>([]);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [openAccId, setOpenAccId] = useState<any>(() => sessionStorage.getItem("holder_acc_id") || null);
-  const [holderMainTab, setHolderMainTab] = useState("notifications");
+  const [holderMainTab, setHolderMainTab] = useState(() => sessionStorage.getItem("holder_main_tab") || "notifications");
   const [tab, setTab] = useState(() => sessionStorage.getItem("holder_tab") || "all");
   const [search, setSearch] = useState("");
   const [timeFilter, setTimeFilter] = useState("all");
@@ -1597,6 +1607,8 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
   const [,setTickH] = useState(0);
   useEffect(() => { const id = setInterval(() => setTickH(t=>t+1), 30000); return () => clearInterval(id); }, []);
   const isPausedH = pausedUntilH && pausedUntilH > Date.now();
+
+  useEffect(() => { sessionStorage.setItem("holder_main_tab", holderMainTab); }, [holderMainTab]);
 
   useEffect(() => {
     load();
@@ -1685,7 +1697,7 @@ function HolderDashboard({ user, onLogout, initialPostId }: any) {
           {accounts.length === 0
             ? <div style={{padding:"10px 20px",fontSize:12,color:C_H.dim}}>No accounts yet. Click + Add to get started.</div>
             : accounts.map((acc: any) => {
-              const active = String(openAccId) === String(acc.id);
+              const active = String(openAccId) === String(acc.id) && holderMainTab !== "leaderboard";
               return (
                 <div key={acc.id} onClick={() => { setOpenAccIdPersist(acc.id); setTab("all"); setHolderMainTab("notifications"); }}
                   style={{display:"flex",alignItems:"center",background:active?"#111827":"none",borderLeft:active?`3px solid ${C_H.accent}`:"3px solid transparent",transition:"all 0.1s",cursor:"pointer",padding:"11px 20px"}}
