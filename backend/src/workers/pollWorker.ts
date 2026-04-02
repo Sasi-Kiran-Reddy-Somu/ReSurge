@@ -218,6 +218,7 @@ export function createPollWorker() {
           for (const account of uniqueAccounts) {
             const [user] = await db.select().from(users).where(eq(users.id, account.holderId)).limit(1);
             if (!user) continue;
+            if (!user.isActive || user.isDeleted) continue;
             const userRoles = (user.roles && user.roles.length > 0) ? user.roles : [user.role];
             if (!userRoles.includes("holder") && !userRoles.includes("monitor")) continue;
 
