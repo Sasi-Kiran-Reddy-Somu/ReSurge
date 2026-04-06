@@ -205,7 +205,7 @@ export function createPollWorker() {
           const matchingAccounts = await db
             .select()
             .from(holderAccounts)
-            .where(sql`${sub} = ANY(${holderAccounts.subreddits})`);
+            .where(and(sql`${sub} = ANY(${holderAccounts.subreddits})`, eq(holderAccounts.isActive, true)));
 
           // Deduplicate: one notification per user regardless of how many accounts they have
           const seenHolderIds = new Set<string>();

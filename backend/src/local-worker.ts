@@ -242,7 +242,7 @@ async function runPoll() {
       const matchingAccounts = await db
         .select()
         .from(holderAccounts)
-        .where(sql`${sub} = ANY(${holderAccounts.subreddits})`);
+        .where(and(sql`${sub} = ANY(${holderAccounts.subreddits})`, eq(holderAccounts.isActive, true)));
 
       for (const account of matchingAccounts) {
         const [user] = await db.select().from(users).where(eq(users.id, account.holderId)).limit(1);

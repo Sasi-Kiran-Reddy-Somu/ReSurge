@@ -99,6 +99,7 @@ export const holderAccounts = pgTable("holder_accounts", {
   redditUsername: text("reddit_username"),
   notes:          text("notes"),
   subreddits:     text("subreddits").array().notNull().default([]),
+  isActive:       boolean("is_active").notNull().default(true),
   addedAt:        timestamp("added_at").notNull().defaultNow(),
 });
 

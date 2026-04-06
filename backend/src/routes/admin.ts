@@ -288,7 +288,7 @@ adminRoutes.post("/invites", async (c) => {
 
   // Check if user already exists
   const [existingUser] = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
-  if (existingUser) {
+  if (existingUser && !existingUser.isDeleted) {
     const existingRole = existingUser.role ?? (existingUser.roles?.[0]);
     if (existingRole === role) {
       return c.json({ error: `User already exists as ${role}`, code: "USER_EXISTS_SAME_ROLE" }, 409);
@@ -297,15 +297,14 @@ adminRoutes.post("/invites", async (c) => {
     }
   }
 
-  // Check if invite already pending
+  // Check if invite already pending — if so, update role and resend
   const [existingInvite] = await db.select().from(invitedUsers).where(eq(invitedUsers.email, normalizedEmail)).limit(1);
+  let row;
   if (existingInvite) {
-    return c.json({ error: `Invite already sent to this email as ${existingInvite.role}`, code: "INVITE_EXISTS", existingRole: existingInvite.role }, 409);
+    [row] = await db.update(invitedUsers).set({ role }).where(eq(invitedUsers.email, normalizedEmail)).returning();
+  } else {
+    [row] = await db.insert(invitedUsers).values({ email: normalizedEmail, role }).returning();
   }
-
-  const [row] = await db.insert(invitedUsers)
-    .values({ email: normalizedEmail, role })
-    .returning();
 
   // Send invite email (best-effort — don't fail the request if email fails)
   sendInviteEmail({ toEmail: row.email, role: row.role }).catch(err => {
