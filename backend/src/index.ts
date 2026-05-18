@@ -26,6 +26,7 @@ import { holderRoutes }    from "./routes/holder.js";
 import { monitorRoutes }   from "./routes/monitor.js";
 import { adminRoutes }     from "./routes/admin.js";
 import { leaderboardRoutes } from "./routes/leaderboard.js";
+import { labRoutes }         from "./routes/lab.js";
 import { createPollWorker } from "./workers/pollWorker.js";
 import { ensureGlobalPollScheduled } from "./lib/queue.js";
 
@@ -67,6 +68,7 @@ app.route("/api/holder",     holderRoutes);
 app.route("/api/monitor",    monitorRoutes);
 app.route("/api/admin",      adminRoutes);
 app.route("/api/leaderboard", leaderboardRoutes);
+app.route("/api/lab",        labRoutes);
 
 // ── Worker heartbeat — called by local-worker after each poll ──
 // Uses JWT_SECRET as a shared secret (no user auth needed).
@@ -184,6 +186,26 @@ async function bootstrap() {
     console.log("✓ leaderboard tables ready");
   } catch (err) {
     console.error("leaderboard tables error:", (err as Error).message);
+  }
+
+  // Ensure post_personality_assignments table exists
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "post_personality_assignments" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "post_id" text NOT NULL,
+        "user_id" text NOT NULL,
+        "personality_id" text NOT NULL,
+        "assigned_at" timestamp NOT NULL DEFAULT now(),
+        "was_fallback" boolean NOT NULL DEFAULT false,
+        CONSTRAINT "post_personality_assignments_post_user_unique" UNIQUE ("post_id", "user_id")
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "ppa_post_idx" ON "post_personality_assignments" ("post_id")`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "ppa_user_idx" ON "post_personality_assignments" ("user_id")`);
+    console.log("✓ post_personality_assignments table ready");
+  } catch (err) {
+    console.error("post_personality_assignments table error:", (err as Error).message);
   }
 
   if (process.env.DISABLE_POLL_WORKER === "true") {

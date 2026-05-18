@@ -28,7 +28,9 @@ export const api = {
   dismissPost:      (id: any)             => req("DELETE", `/posts/${id}/dismiss`),
 
   // Comments
-  generateComment:  (id: any, tone?: string, customPrompt?: string) => req("POST", `/posts/${id}/generate-comment`, { tone, customPrompt }),
+  generateComment:  (id: any, tone?: string, customPrompt?: string, forcePersonalityId?: string) => req("POST", `/posts/${id}/generate-comment`, { tone, customPrompt, forcePersonalityId }),
+  listPersonalities: () => req("GET", `/posts/personalities`),
+  postAssignments:  (id: any) => req("GET", `/posts/${id}/personality-assignments`),
 
   // Thresholds (per-subreddit)
   getThresholds:      (sub: string)              => req("GET",  `/thresholds${sub ? `?subreddit=${encodeURIComponent(sub)}` : ""}`),

@@ -728,6 +728,8 @@ const TONES = ["Witty","Empathetic","Informative","Casual","Enthusiastic","Contr
 
 function PostPopupM({ notif, onClose, onAction }: any) {
   const [comment, setComment] = useState<any>(null);
+  const [personality, setPersonality] = useState<any>(null);
+  const [allPersonalities, setAllPersonalities] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showPaste, setShowPaste] = useState(false);
@@ -735,8 +737,9 @@ function PostPopupM({ notif, onClose, onAction }: any) {
   const [err, setErr] = useState("");
   const [tones, setTones] = useState<string[]>([]);
   const [customPrompt, setCustomPrompt] = useState("");
+  useEffect(() => { reqM("GET", "/posts/personalities").then(setAllPersonalities).catch(() => {}); }, []);
   function toggleTone(t: string) { setTones(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]); }
-  async function generate(cp?: string) { setLoading(true); setErr(""); try { const c = (await reqM("POST", `/posts/${notif.postId}/generate-comment`, { tone: tones.length ? tones.join(", ") : undefined, customPrompt: cp || undefined })).comment; setComment(c); } catch (e: any) { setErr(e.message); } finally { setLoading(false); } }
+  async function generate(cp?: string, forcePersonalityId?: string) { setLoading(true); setErr(""); try { const res = await reqM("POST", `/posts/${notif.postId}/generate-comment`, { tone: tones.length ? tones.join(", ") : undefined, customPrompt: cp || undefined, forcePersonalityId }); setComment(res.comment); setPersonality(res.personality || null); } catch (e: any) { setErr(e.message); } finally { setLoading(false); } }
   async function copy() { await navigator.clipboard.writeText(comment); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 32 }}>
@@ -764,6 +767,13 @@ function PostPopupM({ notif, onClose, onAction }: any) {
         </>)}
         {err && <div style={{ color: C_M.red, fontSize: 13, marginBottom: 12 }}>{err}</div>}
         {comment && <div style={{ background: "#080B12", border: `1px solid #1E3A5F`, borderRadius: 12, padding: 22, marginBottom: 20 }}>
+          {personality && <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10, padding: "6px 10px", background: "#0A1422", border: "1px dashed #1E3A5F", borderRadius: 6 }}>
+            <span style={{ fontSize: 11, color: "#7DD3FC", letterSpacing: "0.04em" }}>VOICE: {personality.name}{personality.fallback ? " (fallback — LRU)" : ""} · src:{personality.source}</span>
+            <select value="" onChange={(e: any) => { if (e.target.value) generate(undefined, e.target.value); }} style={{ background: "#0A0C12", color: "#7DD3FC", border: "1px solid #1E3A5F", borderRadius: 4, fontSize: 11, padding: "2px 6px", cursor: "pointer" }}>
+              <option value="">force voice…</option>
+              {allPersonalities.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>}
           <p style={{ margin: "0 0 16px", fontSize: 14, color: "#D1D5DB", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{comment}</p>
           <div style={{ display: "flex", gap: 8, marginBottom: 12, opacity: customPrompt ? 1 : 0.45, transition: "opacity 0.15s" }}
             onMouseEnter={(e: any) => e.currentTarget.style.opacity="1"}
@@ -1379,6 +1389,7 @@ function AddAccountModalH({ onClose, onAdded }: any) {
 
 function PostPopupH({ notif, cachedComment, onCommentCached, onClose, onAction }: any) {
   const [comment, setComment] = useState(cachedComment);
+  const [personality, setPersonality] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showPaste, setShowPaste] = useState(false);
@@ -1387,7 +1398,7 @@ function PostPopupH({ notif, cachedComment, onCommentCached, onClose, onAction }
   const [tones, setTones] = useState<string[]>([]);
   const [customPrompt, setCustomPrompt] = useState("");
   function toggleToneH(t: string) { setTones(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]); }
-  async function generate(cp?: string) { setLoading(true); setErr(""); try { const c = (await holderApi.generateComment(notif.postId, tones.length ? tones.join(", ") : undefined, cp || undefined)).comment; setComment(c); if (onCommentCached) onCommentCached(c); } catch(e: any) { setErr(e.message); } finally { setLoading(false); } }
+  async function generate(cp?: string) { setLoading(true); setErr(""); try { const res = await holderApi.generateComment(notif.postId, tones.length ? tones.join(", ") : undefined, cp || undefined); setComment(res.comment); setPersonality(res.personality || null); if (onCommentCached) onCommentCached(res.comment); } catch(e: any) { setErr(e.message); } finally { setLoading(false); } }
   async function copy() { await navigator.clipboard.writeText(comment); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:32}}>
@@ -1415,6 +1426,7 @@ function PostPopupH({ notif, cachedComment, onCommentCached, onClose, onAction }
         </>)}
         {err && <div style={{color:C_H.red,fontSize:13,marginBottom:12}}>{err}</div>}
         {comment && <div style={{background:"#080B12",border:`1px solid #1E3A5F`,borderRadius:12,padding:22,marginBottom:20}}>
+          {personality && <div style={{fontSize:11,color:"#FCD34D",letterSpacing:"0.04em",marginBottom:10,padding:"6px 10px",background:"#1C1400",border:"1px dashed #78350F",borderRadius:6}}>VOICE: {personality.name}{personality.fallback ? " (fallback)" : ""}</div>}
           <p style={{margin:"0 0 16px",fontSize:14,color:"#D1D5DB",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{comment}</p>
           <div style={{display:"flex",gap:8,marginBottom:12,opacity:customPrompt?1:0.45,transition:"opacity 0.15s"}}
             onMouseEnter={(e: any) => e.currentTarget.style.opacity="1"}

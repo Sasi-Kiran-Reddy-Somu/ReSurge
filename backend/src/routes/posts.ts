@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 import { db } from "../db/client.js";
-import { posts, generatedComments } from "../db/schema.js";
+import { posts, generatedComments, postPersonalityAssignments } from "../db/schema.js";
 import { eq, and, desc, isNotNull } from "drizzle-orm";
 import { generateComment } from "../lib/commentGenerator.js";
+import { verifyToken } from "../lib/auth.js";
+import { pickPersonality, getPersonalityById, PERSONALITIES } from "../lib/personalities.js";
 
 export const postRoutes = new Hono();
 
@@ -64,7 +66,16 @@ postRoutes.delete("/:id/dismiss", async (c) => {
 });
 
 // POST /api/posts/:id/generate-comment
-// Generate a human-sounding comment via OpenAI for a Stack 3 alert post
+// Generate a human-sounding comment via OpenAI for a Stack 3 alert post.
+//
+// Personality system:
+// - On first call for (postId, userId), pick a personality not already used on
+//   this post and persist the assignment. Regenerations reuse the same one.
+// - If the request has no JWT (unauthenticated caller), fall back to picking
+//   among unused personalities on this post without persisting (best-effort
+//   diversity, no per-user lock).
+// - Admin lab can force a specific personality via body.forcePersonalityId
+//   (does NOT persist — used for blind tests and A/B grids).
 postRoutes.post("/:id/generate-comment", async (c) => {
   const id = c.req.param("id");
 
@@ -74,6 +85,77 @@ postRoutes.post("/:id/generate-comment", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const tone: string | undefined = body.tone || undefined;
   const customPrompt: string | undefined = body.customPrompt || undefined;
+  const forcePersonalityId: string | undefined = body.forcePersonalityId || undefined;
+
+  // Extract userId from JWT if present (optional — endpoint isn't auth-gated)
+  let userId: string | null = null;
+  const header = c.req.header("Authorization") ?? "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (token) {
+    const payload = verifyToken(token);
+    if (payload) userId = payload.userId;
+  }
+
+  // ── Personality selection ────────────────────────────────────
+  let chosenPersonality = forcePersonalityId ? getPersonalityById(forcePersonalityId) : undefined;
+  let assignmentFallback = false;
+  let assignmentSource: "forced" | "existing" | "new" | "anonymous" = "anonymous";
+
+  if (!chosenPersonality) {
+    const existingOnPost = await db
+      .select()
+      .from(postPersonalityAssignments)
+      .where(eq(postPersonalityAssignments.postId, id));
+
+    const myAssignment = userId
+      ? existingOnPost.find((a: any) => a.userId === userId)
+      : undefined;
+
+    if (myAssignment) {
+      chosenPersonality = getPersonalityById(myAssignment.personalityId);
+      assignmentSource = "existing";
+    }
+
+    if (!chosenPersonality) {
+      const { personality, fallback } = pickPersonality({
+        usedAssignments: existingOnPost.map((a: any) => ({
+          personalityId: a.personalityId,
+          assignedAt: a.assignedAt,
+        })),
+        excludeUserAlreadyAssigned: null,
+      });
+      chosenPersonality = personality;
+      assignmentFallback = fallback;
+
+      if (userId) {
+        try {
+          await db.insert(postPersonalityAssignments).values({
+            postId: id,
+            userId,
+            personalityId: personality.id,
+            wasFallback: fallback,
+          });
+          assignmentSource = "new";
+        } catch {
+          // race / unique violation — re-read existing
+          const [reread] = await db
+            .select()
+            .from(postPersonalityAssignments)
+            .where(and(
+              eq(postPersonalityAssignments.postId, id),
+              eq(postPersonalityAssignments.userId, userId),
+            ))
+            .limit(1);
+          if (reread) {
+            chosenPersonality = getPersonalityById(reread.personalityId) ?? personality;
+            assignmentSource = "existing";
+          }
+        }
+      }
+    }
+  } else {
+    assignmentSource = "forced";
+  }
 
   // Fetch previously generated comments for this post to avoid repeating structure
   const prevRows = await db.select().from(generatedComments).where(eq(generatedComments.postId, id));
@@ -82,7 +164,7 @@ postRoutes.post("/:id/generate-comment", async (c) => {
   });
 
   try {
-    const comment = await generateComment(post, tone, customPrompt, previousComments);
+    const comment = await generateComment(post, tone, customPrompt, previousComments, chosenPersonality);
 
     await db.insert(generatedComments).values({
       postId:      post.id,
@@ -90,10 +172,41 @@ postRoutes.post("/:id/generate-comment", async (c) => {
       suggestions: JSON.stringify([comment]),
     });
 
-    return c.json({ comment });
+    return c.json({
+      comment,
+      personality: chosenPersonality ? {
+        id: chosenPersonality.id,
+        name: chosenPersonality.name,
+        fallback: assignmentFallback,
+        source: assignmentSource,
+      } : null,
+    });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to generate comment" }, 500);
   }
+});
+
+// GET /api/posts/personalities
+// Admin/lab — list the personality pool
+postRoutes.get("/personalities", async (c) => {
+  return c.json(PERSONALITIES.map((p) => ({
+    id: p.id,
+    name: p.name,
+    anchor: p.anchor,
+    safeForSensitive: p.safeForSensitive,
+  })));
+});
+
+// GET /api/posts/:id/personality-assignments
+// Admin/lab — see which personalities have been used on this post
+postRoutes.get("/:id/personality-assignments", async (c) => {
+  const id = c.req.param("id");
+  const rows = await db
+    .select()
+    .from(postPersonalityAssignments)
+    .where(eq(postPersonalityAssignments.postId, id))
+    .orderBy(desc(postPersonalityAssignments.assignedAt));
+  return c.json(rows);
 });
 
 // GET /api/posts/history/all

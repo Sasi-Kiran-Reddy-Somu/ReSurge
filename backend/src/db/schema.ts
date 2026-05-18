@@ -177,6 +177,23 @@ export const leaderboardCache = pgTable("leaderboard_cache", {
   updatedAt:     timestamp("updated_at").notNull().defaultNow(),
 });
 
+// ─── post_personality_assignments ─────────────────────────────
+// Locks (post, user) -> personalityId so regenerations stay in voice
+// and other users on the same post avoid already-used personalities.
+export const postPersonalityAssignments = pgTable("post_personality_assignments", {
+  id:            uuid("id").primaryKey().defaultRandom(),
+  postId:        text("post_id").notNull(),
+  userId:        text("user_id").notNull(),
+  personalityId: text("personality_id").notNull(),
+  assignedAt:    timestamp("assigned_at").notNull().defaultNow(),
+  wasFallback:   boolean("was_fallback").notNull().default(false),
+}, (t) => ({
+  ppaPostIdx: index("ppa_post_idx").on(t.postId),
+  ppaUserIdx: index("ppa_user_idx").on(t.userId),
+}));
+
+export type DbPostPersonalityAssignment = typeof postPersonalityAssignments.$inferSelect;
+
 export type DbSubreddit          = typeof subreddits.$inferSelect;
 export type DbPost               = typeof posts.$inferSelect;
 export type DbThresholds         = typeof thresholds.$inferSelect;
