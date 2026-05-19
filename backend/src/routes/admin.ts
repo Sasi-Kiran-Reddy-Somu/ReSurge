@@ -204,17 +204,20 @@ adminRoutes.get("/all-users", async (c) => {
     db.select().from(users).orderBy(desc(users.createdAt)),
     db.select().from(invitedUsers).orderBy(desc(invitedUsers.invitedAt)),
   ]);
-  const userRows = allUsers.map(u => ({
-    type: "user" as const,
-    id: u.id, name: u.name, email: u.email,
-    role: u.role, roles: u.roles,
-    isActive: u.isActive, isDeleted: u.isDeleted,
-    status: u.isDeleted ? "deleted" : u.isActive ? "active" : "inactive",
-    date: u.createdAt,
-  }));
-  const signedUpEmails = new Set(allUsers.map(u => u.email));
+  const reinvitedEmails = new Set(allInvites.map(inv => inv.email));
+  const userRows = allUsers
+    .filter(u => !(u.isDeleted && reinvitedEmails.has(u.email))) // hide deleted users who have been re-invited
+    .map(u => ({
+      type: "user" as const,
+      id: u.id, name: u.name, email: u.email,
+      role: u.role, roles: u.roles,
+      isActive: u.isActive, isDeleted: u.isDeleted,
+      status: u.isDeleted ? "deleted" : u.isActive ? "active" : "inactive",
+      date: u.createdAt,
+    }));
+  const signedUpEmails = new Set(allUsers.filter(u => !u.isDeleted).map(u => u.email));
   const inviteRows = allInvites
-    .filter(inv => !signedUpEmails.has(inv.email)) // skip stale invites for already-registered users
+    .filter(inv => !signedUpEmails.has(inv.email)) // skip stale invites for already-registered (non-deleted) users
     .map(inv => ({
       type: "invite" as const,
       id: inv.id, name: null, email: inv.email,
@@ -285,10 +288,11 @@ adminRoutes.post("/invites", async (c) => {
   if (!["monitor", "holder", "main"].includes(role)) return c.json({ error: "Invalid role" }, 400);
 
   const normalizedEmail = email.toLowerCase().trim();
-
-  // Check if user already exists
   const [existingUser] = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
-  if (existingUser && !existingUser.isDeleted) {
+
+  // Case A — user exists and is currently usable (not deleted, not deactivated).
+  // Block as a true duplicate.
+  if (existingUser && !existingUser.isDeleted && existingUser.isActive) {
     const existingRole = existingUser.role ?? (existingUser.roles?.[0]);
     if (existingRole === role) {
       return c.json({ error: `User already exists as ${role}`, code: "USER_EXISTS_SAME_ROLE" }, 409);
@@ -297,7 +301,41 @@ adminRoutes.post("/invites", async (c) => {
     }
   }
 
-  // Check if invite already pending — if so, update role and resend
+  // Case B — user exists but is deleted or deactivated. Restore in place:
+  // - clear isDeleted / set isActive
+  // - update role (and add to roles[] if not present)
+  // - preserves all their history (notifications, comments, leaderboard, etc.)
+  // - skip creating an invite row — they already have a real user account
+  if (existingUser && (existingUser.isDeleted || !existingUser.isActive)) {
+    const currentRoles = (existingUser.roles && existingUser.roles.length > 0) ? existingUser.roles : [existingUser.role];
+    const mergedRoles = [...new Set([...currentRoles, role])];
+    const [restored] = await db.update(users)
+      .set({
+        isActive: true,
+        isDeleted: false,
+        role,                       // primary/display role becomes the newly-invited role
+        roles: mergedRoles,
+        adminAcknowledged: false,   // re-surface in admin alerts
+      })
+      .where(eq(users.id, existingUser.id))
+      .returning();
+
+    // Clean up any stale invite row for the same email
+    await db.delete(invitedUsers).where(eq(invitedUsers.email, normalizedEmail));
+
+    sendInviteEmail({ toEmail: restored.email, role: restored.role }).catch(err => {
+      console.error("[invite email]", err.message);
+    });
+
+    return c.json({
+      ...restored,
+      restored: true,
+      code: "USER_RESTORED",
+    });
+  }
+
+  // Case C — no user yet. Standard invite flow.
+  // If an invite is already pending, update the role and resend.
   const [existingInvite] = await db.select().from(invitedUsers).where(eq(invitedUsers.email, normalizedEmail)).limit(1);
   let row;
   if (existingInvite) {
@@ -306,7 +344,6 @@ adminRoutes.post("/invites", async (c) => {
     [row] = await db.insert(invitedUsers).values({ email: normalizedEmail, role }).returning();
   }
 
-  // Send invite email (best-effort — don't fail the request if email fails)
   sendInviteEmail({ toEmail: row.email, role: row.role }).catch(err => {
     console.error("[invite email]", err.message);
   });

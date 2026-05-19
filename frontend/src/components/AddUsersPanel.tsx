@@ -223,11 +223,15 @@ export default function UsersPanel({ onSelectHolder, onAckChange }: { onSelectHo
     if (!email.trim()) return;
     setBusy(true); setErr(""); setSuccess("");
     try {
-      await req("POST", "/admin/invites", { email: email.trim(), role });
+      const res: any = await req("POST", "/admin/invites", { email: email.trim(), role });
       setEmail("");
-      setSuccess(`Invite sent to ${email.trim()} as ${ROLE_LABELS[role]}`);
+      if (res && res.code === "USER_RESTORED") {
+        setSuccess(`${email.trim()} has been restored as ${ROLE_LABELS[role]}. Their history is preserved.`);
+      } else {
+        setSuccess(`Invite sent to ${email.trim()} as ${ROLE_LABELS[role]}`);
+      }
       loadAll();
-      setTimeout(() => setSuccess(""), 5000);
+      setTimeout(() => setSuccess(""), 6000);
     } catch (err: any) {
       if (err.code === "USER_EXISTS_SAME_ROLE") {
         setModal({ title: "User already exists", message: `${email.trim()} is already a ${ROLE_LABELS[role] ?? role}.` });
