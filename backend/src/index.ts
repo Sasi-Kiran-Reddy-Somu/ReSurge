@@ -188,6 +188,14 @@ async function bootstrap() {
     console.error("leaderboard tables error:", (err as Error).message);
   }
 
+  // Ensure notifications.email_skipped_reason column exists
+  try {
+    await db.execute(sql`ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "email_skipped_reason" text`);
+    console.log("✓ notifications.email_skipped_reason column ready");
+  } catch (err) {
+    console.error("email_skipped_reason column error:", (err as Error).message);
+  }
+
   // Ensure post_personality_assignments table exists
   try {
     await db.execute(sql`

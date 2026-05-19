@@ -7,6 +7,7 @@ import { posts, thresholds, subreddits, users, holderAccounts, notifications, co
 import { eq, and, lt, sql, isNull, inArray } from "drizzle-orm";
 import { signToken } from "../lib/auth.js";
 import { sendStack3Notification } from "../lib/emailer.js";
+import { shouldSendEmail } from "../lib/notificationPolicy.js";
 import { POLL_QUEUE_NAME } from "../lib/queue.js";
 
 /**
@@ -235,9 +236,14 @@ export function createPollWorker() {
                 accountId: account.id,
               }).returning();
 
-              // Skip email if user has paused notifications
-              if (user.notificationsPausedUntil && user.notificationsPausedUntil > now) {
-                console.log(`  Notifications paused for ${user.email} (${Math.round((user.notificationsPausedUntil - now) / 60000)}m left)`);
+              // Centralized policy: deactivated / paused / daily-cap.
+              // Notification row already created → it shows in the app regardless.
+              const decision = await shouldSendEmail({ userId: user.id, subreddit: post.subreddit, now });
+              if (!decision.send) {
+                await db.update(notifications)
+                  .set({ emailSkippedReason: decision.reason })
+                  .where(eq(notifications.id, notif.id));
+                console.log(`  ⊘ Skipped email to ${user.email} for r/${post.subreddit} (${decision.reason})`);
                 continue;
               }
 

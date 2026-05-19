@@ -133,6 +133,9 @@ export const notifications = pgTable("notifications", {
   status:     text("status").notNull().default("sent"), // "sent"|"opened"|"done"|"posted"
   postedLink: text("posted_link"),
   postedAt:   timestamp("posted_at"),
+  // When set, the notification row exists in the app but the email was deliberately skipped.
+  // Values: "daily_cap" | "paused" | "deactivated" | null
+  emailSkippedReason: text("email_skipped_reason"),
 });
 
 // ─── invited_users (admin-managed invite list for RBAC) ────────

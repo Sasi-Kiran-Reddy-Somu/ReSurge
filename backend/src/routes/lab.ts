@@ -28,32 +28,45 @@ labRoutes.get("/recent-s3-posts", async (c) => {
   return c.json(rows);
 });
 
-// POST /api/lab/generate-grid — generate ONE comment per personality for a given post.
+// POST /api/lab/generate-grid — generate one comment per selected personality.
+// Body: { postId, personalityIds?: string[] }
+// If personalityIds is omitted/empty, picks 4 random personalities.
 // Does NOT persist assignments; pure ephemeral test.
 labRoutes.post("/generate-grid", async (c) => {
   if (!checkLab(c)) return c.json({ error: "lab locked" }, 401);
   const body = await c.req.json().catch(() => ({}));
   const postId: string | undefined = body.postId;
+  const requestedIds: string[] | undefined = Array.isArray(body.personalityIds) ? body.personalityIds : undefined;
   if (!postId) return c.json({ error: "postId required" }, 400);
 
   const [post] = await db.select().from(posts).where(eq(posts.id, postId)).limit(1);
   if (!post) return c.json({ error: "post not found" }, 404);
 
-  const out: Array<{ personalityId: string; personalityName: string; comment: string; error?: string }> = [];
-  for (const p of PERSONALITIES) {
+  const selected = pickPersonalitiesForGrid(requestedIds);
+  const out = await runInParallel(selected, async (p) => {
     try {
       const text = await generateComment(post, undefined, undefined, [], p);
-      out.push({ personalityId: p.id, personalityName: p.name, comment: text });
+      return { personalityId: p.id, personalityName: p.name, comment: text };
     } catch (e: any) {
-      out.push({ personalityId: p.id, personalityName: p.name, comment: "", error: e.message });
+      return { personalityId: p.id, personalityName: p.name, comment: "", error: e.message };
     }
-  }
+  }, 6);
 
   return c.json({
     post: { id: post.id, title: post.title, subreddit: post.subreddit, selftext: post.selftext, url: post.url },
     results: out,
   });
 });
+
+function pickPersonalitiesForGrid(requestedIds?: string[]) {
+  if (requestedIds && requestedIds.length > 0) {
+    const resolved = requestedIds.map(id => PERSONALITIES.find(p => p.id === id)).filter(Boolean) as typeof PERSONALITIES;
+    if (resolved.length > 0) return resolved;
+  }
+  // Default: 4 random distinct
+  const shuffled = [...PERSONALITIES].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 4);
+}
 
 // POST /api/lab/generate-grid-adhoc — same as generate-grid but for a pasted post
 // (title + body, no DB lookup). Top-comments fetch is skipped since there's no redditId.
@@ -63,32 +76,41 @@ labRoutes.post("/generate-grid-adhoc", async (c) => {
   const title: string = (body.title ?? "").trim();
   const selftext: string = (body.selftext ?? "").trim();
   const subreddit: string = (body.subreddit ?? "general").trim().toLowerCase();
+  const requestedIds: string[] | undefined = Array.isArray(body.personalityIds) ? body.personalityIds : undefined;
   if (!title) return c.json({ error: "title required" }, 400);
 
-  const fakePost = {
-    id: "adhoc",
-    redditId: "",
-    subreddit,
-    title,
-    selftext,
-    url: "",
-  };
+  const fakePost = { id: "adhoc", redditId: "", subreddit, title, selftext, url: "" };
+  const selected = pickPersonalitiesForGrid(requestedIds);
 
-  const out: Array<{ personalityId: string; personalityName: string; comment: string; error?: string }> = [];
-  for (const p of PERSONALITIES) {
+  const out = await runInParallel(selected, async (p) => {
     try {
       const text = await generateComment(fakePost, undefined, undefined, [], p);
-      out.push({ personalityId: p.id, personalityName: p.name, comment: text });
+      return { personalityId: p.id, personalityName: p.name, comment: text };
     } catch (e: any) {
-      out.push({ personalityId: p.id, personalityName: p.name, comment: "", error: e.message });
+      return { personalityId: p.id, personalityName: p.name, comment: "", error: e.message };
     }
-  }
+  }, 6);
 
   return c.json({
     post: { id: "adhoc", title, subreddit, selftext, url: "" },
     results: out,
   });
 });
+
+// Run async tasks with a concurrency cap, preserving input order.
+async function runInParallel<T, R>(items: T[], fn: (item: T) => Promise<R>, concurrency: number): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
+}
 
 // POST /api/lab/regenerate-one-adhoc — same as regenerate-one but for pasted post
 labRoutes.post("/regenerate-one-adhoc", async (c) => {
@@ -193,7 +215,12 @@ const LAB_HTML = String.raw`<!doctype html>
   <div id="tab-grid">
     <div class="row">
       <select id="postSel" style="flex:1;min-width:200px;"></select>
-      <button id="genBtn" onclick="genGrid()">Generate 4 Comments</button>
+      <select id="countSel" title="how many personalities">
+        <option value="4">4 random</option>
+        <option value="10">10 random</option>
+        <option value="50">all 50</option>
+      </select>
+      <button id="genBtn" onclick="genGrid()">Generate</button>
     </div>
     <div id="postShow"></div>
     <div id="grid" class="grid"></div>
@@ -204,7 +231,14 @@ const LAB_HTML = String.raw`<!doctype html>
       <input id="adhocSub" placeholder="subreddit (e.g. 30PlusSkinCare)" style="margin-bottom:8px;">
       <input id="adhocTitle" placeholder="Post title" style="margin-bottom:8px;">
       <textarea id="adhocBody" placeholder="Post body (optional)" rows="8" style="background:var(--surf);color:var(--text);border:1px solid var(--bord);border-radius:6px;padding:10px;font-size:13px;font-family:inherit;resize:vertical;margin-bottom:8px;"></textarea>
-      <button id="adhocBtn" onclick="genAdhoc()" style="align-self:flex-start;">Generate 4 Comments</button>
+      <div style="display:flex;gap:8px;align-self:flex-start;">
+        <select id="adhocCountSel" title="how many personalities">
+          <option value="4">4 random</option>
+          <option value="10">10 random</option>
+          <option value="50">all 50</option>
+        </select>
+        <button id="adhocBtn" onclick="genAdhoc()">Generate</button>
+      </div>
     </div>
     <div id="adhocShow"></div>
     <div id="adhocGrid" class="grid"></div>
@@ -251,11 +285,17 @@ async function tryStart() {
 }
 
 let posts = [];
+let allPersonalities = [];
 async function loadPosts() {
   posts = await api("/api/lab/recent-s3-posts");
   for (const sel of ["postSel","postSel2"]) {
     $(sel).innerHTML = posts.map(p => '<option value="'+p.id+'">r/'+p.subreddit+' — '+p.title.slice(0,80).replace(/"/g,"&quot;")+'</option>').join("");
   }
+  try { allPersonalities = await api("/api/posts/personalities"); } catch {}
+}
+function pickRandomIds(n) {
+  const shuffled = [...allPersonalities].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, Math.min(n, shuffled.length)).map(p => p.id);
 }
 
 function switchTab(t) {
@@ -270,12 +310,15 @@ async function genAdhoc() {
   const title = $("adhocTitle").value.trim();
   const selftext = $("adhocBody").value;
   const subreddit = $("adhocSub").value.trim() || "general";
+  const n = parseInt($("adhocCountSel").value, 10);
+  const ids = pickRandomIds(n);
   if (!title) { alert("Title required"); return; }
   $("adhocBtn").disabled = true;
-  $("adhocGrid").innerHTML = '<div style="color:var(--mute);">Generating 4 comments… ~15-30s</div>';
+  const eta = Math.max(5, Math.ceil(n / 6) * 3);
+  $("adhocGrid").innerHTML = '<div style="color:var(--mute);">Generating '+ids.length+' comments… ~'+eta+'s (running 6 in parallel)</div>';
   $("adhocShow").innerHTML = '';
   try {
-    const r = await api("/api/lab/generate-grid-adhoc", { method:"POST", body: JSON.stringify({title, selftext, subreddit}) });
+    const r = await api("/api/lab/generate-grid-adhoc", { method:"POST", body: JSON.stringify({title, selftext, subreddit, personalityIds:ids}) });
     $("adhocShow").innerHTML = '<div class="post-card"><div class="ttl">'+escape(r.post.title)+'</div><div class="meta">r/'+r.post.subreddit+'</div>'+(r.post.selftext?'<div class="body">'+escape(r.post.selftext)+'</div>':'')+'</div>';
     $("adhocGrid").innerHTML = r.results.map(x => '<div class="cell" data-pid="'+x.personalityId+'"><h3>'+x.personalityName+'</h3><div class="out">'+(x.error?'<span class="err">'+escape(x.error)+'</span>':escape(x.comment))+'</div><div class="actions"><button onclick="regenAdhoc(\''+x.personalityId+'\',this)">↺ Regenerate (same voice)</button></div></div>').join("");
   } catch (e) { $("adhocGrid").innerHTML = '<div class="err">'+e.message+'</div>'; }
@@ -301,10 +344,13 @@ function escape(s){return (s||"").replace(/[<>&"]/g, c => ({"<":"&lt;",">":"&gt;
 
 async function genGrid() {
   const id = $("postSel").value;
+  const n = parseInt($("countSel").value, 10);
+  const ids = pickRandomIds(n);
   $("genBtn").disabled = true;
-  $("grid").innerHTML = '<div style="color:var(--mute);">Generating 4 comments… ~15-30s</div>';
+  const eta = Math.max(5, Math.ceil(n / 6) * 3);
+  $("grid").innerHTML = '<div style="color:var(--mute);">Generating '+ids.length+' comments… ~'+eta+'s (running 6 in parallel)</div>';
   try {
-    const r = await api("/api/lab/generate-grid", { method:"POST", body: JSON.stringify({postId:id}) });
+    const r = await api("/api/lab/generate-grid", { method:"POST", body: JSON.stringify({postId:id, personalityIds:ids}) });
     showPost(r.post);
     $("grid").innerHTML = r.results.map(x => '<div class="cell" data-pid="'+x.personalityId+'"><h3>'+x.personalityName+'</h3><div class="out">'+(x.error?'<span class="err">'+escape(x.error)+'</span>':escape(x.comment))+'</div><div class="actions"><button onclick="regen(\''+x.personalityId+'\',\''+id+'\',this)">↺ Regenerate (same voice)</button></div></div>').join("");
   } catch (e) { $("grid").innerHTML = '<div class="err">'+e.message+'</div>'; }

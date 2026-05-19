@@ -53,6 +53,7 @@ import { fetchNewPostsMulti, refreshPostEngagement } from "./lib/redditFetcher.j
 import { runStackTransitions } from "./lib/stackEngine.js";
 import { signToken } from "./lib/auth.js";
 import { sendStack3Notification } from "./lib/emailer.js";
+import { shouldSendEmail } from "./lib/notificationPolicy.js";
 import { eq, and, lt, sql, isNull, inArray, desc } from "drizzle-orm";
 
 const POLL_INTERVAL_MS = 60_000;
@@ -244,7 +245,16 @@ async function runPoll() {
         .from(holderAccounts)
         .where(and(sql`${sub} = ANY(${holderAccounts.subreddits})`, eq(holderAccounts.isActive, true)));
 
-      for (const account of matchingAccounts) {
+      // Dedupe by holderId — one notification per user even if they have
+      // multiple accounts subscribed to the same subreddit.
+      const seenHolderIds = new Set<string>();
+      const uniqueAccounts = matchingAccounts.filter(a => {
+        if (seenHolderIds.has(a.holderId)) return false;
+        seenHolderIds.add(a.holderId);
+        return true;
+      });
+
+      for (const account of uniqueAccounts) {
         const [user] = await db.select().from(users).where(eq(users.id, account.holderId)).limit(1);
         if (!user) continue;
         if (!user.isActive || user.isDeleted) continue;
@@ -264,9 +274,14 @@ async function runPoll() {
             accountId: account.id,
           }).returning();
 
-          // Skip email if user has paused notifications
-          if (user.notificationsPausedUntil && user.notificationsPausedUntil > now) {
-            console.log(`  Notifications paused for ${user.email} (${Math.round((user.notificationsPausedUntil - now) / 60000)}m left)`);
+          // Centralized policy: deactivated / paused / daily-cap.
+          // Notification row is always created → still visible in the app.
+          const decision = await shouldSendEmail({ userId: user.id, subreddit: post.subreddit, now });
+          if (!decision.send) {
+            await db.update(notifications)
+              .set({ emailSkippedReason: decision.reason })
+              .where(eq(notifications.id, notif.id));
+            console.log(`  ⊘ Skipped email to ${user.email} for r/${post.subreddit} (${decision.reason})`);
             continue;
           }
 
