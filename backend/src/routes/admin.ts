@@ -195,7 +195,7 @@ adminRoutes.post("/alerts/ack-all", async (c) => {
 // GET /api/admin/users — all users (existing, for backward compat)
 adminRoutes.get("/users", async (c) => {
   const all = await db.select().from(users).orderBy(desc(users.createdAt));
-  return c.json(all.map(u => ({ id: u.id, name: u.name, email: u.email, role: u.role, roles: u.roles, createdAt: u.createdAt, isActive: u.isActive, isDeleted: u.isDeleted })));
+  return c.json(all.map(u => ({ id: u.id, name: u.name, email: u.email, role: u.role, roles: u.roles, createdAt: u.createdAt, isActive: u.isActive, isDeleted: u.isDeleted, emailNotificationsDisabled: u.emailNotificationsDisabled })));
 });
 
 // GET /api/admin/all-users — unified list: pending invites + signed-up users
@@ -212,6 +212,7 @@ adminRoutes.get("/all-users", async (c) => {
       id: u.id, name: u.name, email: u.email,
       role: u.role, roles: u.roles,
       isActive: u.isActive, isDeleted: u.isDeleted,
+      emailNotificationsDisabled: u.emailNotificationsDisabled,
       status: u.isDeleted ? "deleted" : u.isActive ? "active" : "inactive",
       date: u.createdAt,
     }));
@@ -245,6 +246,18 @@ adminRoutes.patch("/users/:id", async (c) => {
     const [user] = await db.update(users).set({ isActive: true, isDeleted: false }).where(eq(users.id, id)).returning();
     if (!user) return c.json({ error: "User not found" }, 404);
     return c.json({ ok: true, status: "active" });
+  }
+  // Permanently disable email notifications (admin-only kill switch).
+  // The in-app notification feed still works; only email sending is suppressed.
+  if (body.action === "disable_emails") {
+    const [user] = await db.update(users).set({ emailNotificationsDisabled: true }).where(eq(users.id, id)).returning();
+    if (!user) return c.json({ error: "User not found" }, 404);
+    return c.json({ ok: true, emailNotificationsDisabled: true });
+  }
+  if (body.action === "enable_emails") {
+    const [user] = await db.update(users).set({ emailNotificationsDisabled: false }).where(eq(users.id, id)).returning();
+    if (!user) return c.json({ error: "User not found" }, 404);
+    return c.json({ ok: true, emailNotificationsDisabled: false });
   }
 
   // Role change

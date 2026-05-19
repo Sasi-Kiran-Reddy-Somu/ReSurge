@@ -47,7 +47,7 @@ function timeAgo(ts: any) {
   return `${Math.round(d / 86400)}d ago`;
 }
 
-type RowAction = "resend" | "deactivate" | "activate" | "delete" | "role";
+type RowAction = "resend" | "deactivate" | "activate" | "delete" | "role" | "disable_emails" | "enable_emails";
 
 function ActionsMenu({ row, onAction, busy }: { row: any; onAction: (action: RowAction, extra?: any) => void; busy: boolean }) {
   const [open, setOpen] = useState(false);
@@ -95,6 +95,15 @@ function ActionsMenu({ row, onAction, busy }: { row: any; onAction: (action: Row
               {/* Role change — for active and inactive users */}
               {row.type === "user" && row.status !== "deleted" && (
                 <MenuItem icon="🔄" label="Change Role" color={C.sub} onClick={() => setRoleMenu(true)} />
+              )}
+              {/* Pause / Resume email notifications — active users only.
+                  Independent of deactivation: the user can still use the app,
+                  just won't receive emails. Permanent until admin re-enables. */}
+              {row.type === "user" && row.status === "active" && !row.emailNotificationsDisabled && (
+                <MenuItem icon="🔕" label="Pause Email Notifications" color={C.amber} onClick={() => { setOpen(false); onAction("disable_emails"); }} />
+              )}
+              {row.type === "user" && row.status === "active" && row.emailNotificationsDisabled && (
+                <MenuItem icon="🔔" label="Resume Email Notifications" color={C.green} onClick={() => { setOpen(false); onAction("enable_emails"); }} />
               )}
               {/* Deactivate — active users only */}
               {row.status === "active" && (
@@ -264,6 +273,15 @@ export default function UsersPanel({ onSelectHolder, onAckChange }: { onSelectHo
       } else if (action === "activate") {
         await req("PATCH", `/admin/users/${id}`, { action: "activate" });
         setSuccess(`${row.email} reactivated.`);
+        loadAll();
+      } else if (action === "disable_emails") {
+        if (!confirm(`Stop sending email notifications to ${row.email}? They'll still see notifications in-app. You can re-enable from this menu.`)) return;
+        await req("PATCH", `/admin/users/${id}`, { action: "disable_emails" });
+        setSuccess(`Email notifications paused for ${row.email}.`);
+        loadAll();
+      } else if (action === "enable_emails") {
+        await req("PATCH", `/admin/users/${id}`, { action: "enable_emails" });
+        setSuccess(`Email notifications resumed for ${row.email}.`);
         loadAll();
       } else if (action === "delete") {
         const msg = row.type === "invite"
@@ -462,6 +480,11 @@ export default function UsersPanel({ onSelectHolder, onAckChange }: { onSelectHo
                     <span style={{ fontSize: 11, color: sc, background: sc + "18", padding: "4px 10px", borderRadius: 20, fontWeight: 700, whiteSpace: "nowrap" as const, textAlign: "center", letterSpacing: "0.03em" }}>
                       {STATUS_LABEL[row.status] ?? row.status.toUpperCase()}
                     </span>
+                    {row.emailNotificationsDisabled && row.status === "active" && (
+                      <span title="Email notifications paused by admin" style={{ fontSize: 10, color: C.amber, background: C.amber + "18", padding: "4px 8px", borderRadius: 20, fontWeight: 600, whiteSpace: "nowrap" as const }}>
+                        🔕 EMAIL OFF
+                      </span>
+                    )}
                     <div style={{ fontSize: 11, color: C.muted }}>
                       {row.date ? new Date(row.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
                     </div>

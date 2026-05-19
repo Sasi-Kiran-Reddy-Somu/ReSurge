@@ -188,6 +188,14 @@ async function bootstrap() {
     console.error("leaderboard tables error:", (err as Error).message);
   }
 
+  // Ensure users.email_notifications_disabled column exists
+  try {
+    await db.execute(sql`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "email_notifications_disabled" boolean NOT NULL DEFAULT false`);
+    console.log("✓ users.email_notifications_disabled column ready");
+  } catch (err) {
+    console.error("email_notifications_disabled column error:", (err as Error).message);
+  }
+
   // Ensure notifications.email_skipped_reason column exists
   try {
     await db.execute(sql`ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "email_skipped_reason" text`);

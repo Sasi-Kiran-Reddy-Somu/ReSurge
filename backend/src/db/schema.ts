@@ -88,6 +88,10 @@ export const users = pgTable("users", {
   isActive:                 boolean("is_active").notNull().default(true),
   isDeleted:                boolean("is_deleted").notNull().default(false),
   notificationsPausedUntil: bigint("notifications_paused_until", { mode: "number" }),
+  // Admin-controlled permanent disable for email notifications. The user can
+  // still see notifications in-app; only the email send is suppressed.
+  // Independent of notificationsPausedUntil (user-controlled, time-boxed).
+  emailNotificationsDisabled: boolean("email_notifications_disabled").notNull().default(false),
   createdAt:                timestamp("created_at").notNull().defaultNow(),
 });
 

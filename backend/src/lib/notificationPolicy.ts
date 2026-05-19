@@ -4,7 +4,7 @@ import { eq, and, gte, isNull, ne, sql } from "drizzle-orm";
 
 export const DAILY_EMAIL_CAP_PER_SUBREDDIT = 5;
 
-export type EmailSkipReason = "daily_cap" | "paused" | "deactivated";
+export type EmailSkipReason = "daily_cap" | "paused" | "deactivated" | "admin_disabled";
 
 /**
  * Decide whether to send an email for a new notification.
@@ -34,6 +34,7 @@ export async function shouldSendEmail(opts: {
       isActive: users.isActive,
       isDeleted: users.isDeleted,
       notificationsPausedUntil: users.notificationsPausedUntil,
+      emailNotificationsDisabled: users.emailNotificationsDisabled,
     })
     .from(users)
     .where(eq(users.id, userId))
@@ -43,12 +44,17 @@ export async function shouldSendEmail(opts: {
     return { send: false, reason: "deactivated" };
   }
 
-  // 2. Paused?
+  // 2. Admin has permanently disabled emails for this user.
+  if (user.emailNotificationsDisabled) {
+    return { send: false, reason: "admin_disabled" };
+  }
+
+  // 3. User has temporarily paused their own notifications.
   if (user.notificationsPausedUntil && user.notificationsPausedUntil > now) {
     return { send: false, reason: "paused" };
   }
 
-  // 3. Per-subreddit daily cap (UTC calendar day).
+  // 4. Per-subreddit daily cap (UTC calendar day).
   const startOfUtcDay = new Date();
   startOfUtcDay.setUTCHours(0, 0, 0, 0);
 
