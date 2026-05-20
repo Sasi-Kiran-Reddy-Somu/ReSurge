@@ -22,13 +22,58 @@ async function fetchTopComments(subreddit: string, redditId: string): Promise<st
   }
 }
 
-// Strip em-dashes and en-dashes the model still slips in despite explicit bans.
-// Em-dashes are one of the strongest AI tells in casual text. Replace with a
-// comma (most contextually neutral substitute) or period if surrounded by spaces.
+// Strip em-dashes, en-dashes, and semicolons that the model slips through
+// despite explicit bans. These are among the strongest AI tells in casual text.
 function stripDashes(text: string): string {
   return text
-    .replace(/\s+[—–]\s+/g, ", ")  // " — " or " – " → ", "
-    .replace(/[—–]/g, "-");        // any remaining standalone em/en → hyphen
+    .replace(/\s+[—–]\s+/g, ", ")   // " — " or " – " → ", "
+    .replace(/[—–]/g, "-")          // any remaining standalone em/en → hyphen
+    .replace(/\s*;\s*/g, ". ");     // semicolons → period (then capitalization
+                                    // is handled by the model output already)
+}
+
+// Apply small human-like noise to the comment after generation. Layered, these
+// nudge the output past AI-detection signature shapes without sounding fake.
+// Each individual change has a low probability so we don't always do all of
+// them on every comment — that pattern itself would become a tell.
+function applyHumanNoise(text: string, allowsCasualNoise: boolean): string {
+  let out = text;
+
+  // 1. Drop one comma from the middle (~15% chance). Real people skip commas.
+  if (Math.random() < 0.15) {
+    const commaPositions: number[] = [];
+    for (let i = 0; i < out.length; i++) if (out[i] === ",") commaPositions.push(i);
+    // Skip first and last commas — those are often load-bearing for clauses.
+    const candidates = commaPositions.slice(1, -1);
+    if (candidates.length > 0) {
+      const drop = candidates[Math.floor(Math.random() * candidates.length)];
+      out = out.slice(0, drop) + out.slice(drop + 1);
+    }
+  }
+
+  // The next tricks are only safe for casual voices — formal personas
+  // (Veteran Power-User, HR Pro, Patient Teacher, Older Storyteller, etc.)
+  // would feel off with lowercased openers or trailing "lol".
+  if (!allowsCasualNoise) return out;
+
+  // 2. Lowercase a sentence-start letter (~12% chance), but only the very first
+  //    letter, and only if the rest of the comment uses sentence case (so
+  //    we don't double-lowercase an already-lowercase persona).
+  if (Math.random() < 0.12 && /^[A-Z]/.test(out)) {
+    // Heuristic: if the first 60 chars contain another capital sentence-start,
+    // the persona is sentence-case — safe to lowercase the opener.
+    const head = out.slice(0, 80);
+    if (/\.\s+[A-Z]/.test(head) || head.length === out.length) {
+      out = out[0].toLowerCase() + out.slice(1);
+    }
+  }
+
+  // 3. Strip the trailing period (~18%) — real casual comments often end without one.
+  if (Math.random() < 0.18) {
+    out = out.replace(/\.\s*$/, "");
+  }
+
+  return out;
 }
 
 export async function generateComment(
@@ -91,58 +136,55 @@ export async function generateComment(
     ? `- Do not start your comment with any of these words or phrases (they're already used in this thread): ${bannedStarters.map(w => `"${w}"`).join(", ")}.\n`
     : "";
 
-  // Personality block goes FIRST so the model reads "who am I" before the
-  // style rules. The persona shapes *what* this person says; the rules below
-  // shape *how it reads on Reddit* (sloppy, casual, contractions, etc.).
-  // Both apply together — persona is the voice, rules are the medium.
+  // Persona goes first so the model anchors on "who am I" before reading the
+  // general defaults. Persona explicitly wins on register / sentence length /
+  // slang / capitalization; the section below is just the fallback for things
+  // the persona doesn't pin down.
   const personalityBlock = personality
     ? `${renderPersonalityPrompt(personality)}\n\n`
     : "";
 
-  const prompt = `${personalityBlock}You are a regular American Reddit user casually scrolling r/${post.subreddit} and leaving a quick comment. Write ONE comment replying to the post below.
+  const prompt = `${personalityBlock}You're scrolling r/${post.subreddit} and you decide to leave one quick comment on the post below.
 
 Post title: ${post.title}${postBody}${commentsContext}
 
-${toneInstruction}UNDERSTAND THE POST BEFORE YOU WRITE:
-- First figure out what kind of post this is: (a) asking for help or advice, (b) sharing a story or experience, (c) asking a question, (d) venting or ranting.
-- If the post is sharing a story or experience (NOT asking for help), react to what they said — relate, sympathize, express surprise, ask a follow-up — do NOT give advice or solutions they didn't ask for.
-- If the post already mentions the cause or resolution of a problem, do NOT suggest causes or fixes — they already know. React to what they discovered instead.
-- Match your comment type to the post type. A vent gets empathy. A story gets a reaction. A question gets an answer. A help request gets advice.
+${toneInstruction}First, read the post and match what it actually wants:
+- Vent or rant → empathy or a "same", not advice.
+- Story or experience → a reaction or follow-up question, not advice.
+- Question → an answer.
+- Help / advice request → an answer, but only if you have a real one.
+- If the post already names the cause of the problem, don't repeat the cause as if it's a fix.
+- Don't speak more casually than the post itself. A careful, detailed post deserves a careful reply.
 
-Your comment must pass AI detection as 100% human-written. To achieve this, follow every rule below without exception:
+General defaults (your persona's rules override these wherever they conflict):
 
-LENGTH & STRUCTURE:
-- Keep it short. Most good Reddit comments are 1–3 sentences. Only go longer if the post genuinely requires it.
-- Never pad. Say the one thing you need to say and stop. No buildup, no filler, no conclusion.
-- No structure. Just a raw reaction, quick take, or short question.
-- Fragments are fine. Incomplete sentences are fine. That's how people text.
+LENGTH
+- Most comments are 1–3 sentences. Go longer only if the post genuinely needs it.
+- Don't end with a wrap-up or summary sentence. Stop when you've said the thing.
 
-LANGUAGE & VOICE:
-- Write exactly like a real American types casually online. Sloppy is good.
-- Use contractions always: don't, it's, tbh, ngl, idk, lol, kinda, gonna, wanna, lowkey, fr, rn, tho, bc, cuz, prolly, tbf. (If your persona is older/formal, still use everyday contractions like don't, it's, you're — just skip the slang.)
-- Minor grammar imperfections are expected and required — don't correct them. Things like "me and my friend" instead of "my friend and I", missing commas, run-ons, etc.
-- Vary capitalization naturally — don't capitalize everything perfectly. Lowercase is fine.
-- No punctuation at the end sometimes. Or just use … or lol as an ending.
+VOICE
+- Type-and-hit-reply, not type-and-polish. Also not type-and-perform-being-messy.
+- Use everyday contractions where they sound natural (don't, it's, you're, that's, can't).
+- At most one slang hedge per comment, often none. Don't stack tbh, ngl, lol, kinda, fr, lowkey, imo. Pick zero or one and move on.
+- A missed comma, a fragment, a casual run-on is fine when it'd happen naturally — not as a tic you sprinkle on top.
+- Voice-note typed out, not an essay.
+- Vary opener, length, and angle every single time. Different people read the same post very differently.
 
-SOUND LIKE A LOCAL AMERICAN (this is critical):
-- Think of how a regular American talks in their daily life — not formal, not trying to impress anyone, just natural and unfiltered.
-- Real Americans cut words short, skip words, trail off, use filler words mid-sentence, and don't always finish their thought cleanly.
-- Imperfect sentence structure is a feature, not a bug — run-ons, comma splices, missing subjects, sentences that just end mid-thought are all fine.
-- It should read like a text message or a voice note typed out, not a written response.
-- IMPORTANT: Do NOT reuse fixed phrases or templates. Every comment must feel like a different person reacting differently — vary your word choice, sentence length, entry point, and reaction style every single time. The same post can get wildly different genuine reactions from different people.
+WHAT REAL PEOPLE DON'T DO
+- Don't write a closing summary ("So basically…", "Bottom line…", "In the end…").
+- Don't structure your comment as numbered points or first/second/finally.
+- Don't use neat transition words: That said, However, Additionally, Furthermore, Moreover, Therefore, In conclusion.
+- Don't write balanced parallel structures: "not just X, but Y", "on one hand… on the other".
+- Don't make three points in parallel. One point, maybe a second, then stop.
+- Don't write a complete, fully-argued case. Real comments often start mid-thought or stop before the obvious conclusion.
 
-WHAT TO AVOID (strictly):
-- Never sound polished, structured, or complete.
-- No bold, italic, bullet points, numbered lists, headers.
-- No em dashes (—) and no en dashes (–). Use commas or just start a new sentence.
-- No semicolons (;). Use a period or a comma.
-- No hashtags.
-- Don't start with "I".
-${bannedStartersInstruction}- Never use these AI giveaway words/phrases: certainly, absolutely, great question, I'd be happy to, of course, indeed, it's worth noting, it's important to, comprehensive, delve, foster, utilize, leverage, in conclusion, fascinating, wonderful, crucial, ensure, moreover, furthermore, however.
-- Don't try hard to sound casual — just BE casual.
-- Don't pad it out. Say the thing and stop.
+HARD BANS
+- No bold, italic, bullets, numbered lists, headers, hashtags.
+- No em dashes (—), no en dashes (–), no semicolons (;).
+- Don't open with "I think you should", "I would recommend", "I'd suggest", or any other advice-template opener. Starting with "I" otherwise is fine ("I had this same thing", "I went through this last year").
+${bannedStartersInstruction}- Avoid these AI tells: certainly, absolutely, great question, I'd be happy to, of course, indeed, it's worth noting, it's important to, comprehensive, delve, foster, utilize, leverage, in conclusion, fascinating, wonderful, crucial, ensure, moreover, furthermore, however.
 
-Output only the comment text. Nothing else. No quotes around it.${customInstruction}${avoidInstruction}`;
+Output only the comment text. No quotes. Nothing else.${customInstruction}${avoidInstruction}`;
 
   if (process.env.PERSONALITY_DEBUG === "true") {
     console.log("\n────── personality-debug: final prompt ──────");
@@ -160,6 +202,8 @@ Output only the comment text. Nothing else. No quotes around it.${customInstruct
   const rawText = response.choices[0]?.message?.content?.trim() ?? "";
   if (!rawText) throw new Error("OpenAI returned empty response");
 
-  // Belt + suspenders: strip any em-dashes the model snuck through.
-  return stripDashes(rawText);
+  // 1. Strip the hard-banned punctuation the model still occasionally produces.
+  // 2. Apply gentle human-like noise (with persona-aware gating).
+  const allowsCasualNoise = personality?.allowsCasualNoise ?? true;
+  return applyHumanNoise(stripDashes(rawText), allowsCasualNoise);
 }
